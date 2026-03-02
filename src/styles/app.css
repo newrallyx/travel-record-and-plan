@@ -1,0 +1,278 @@
+/* 页面级样式：三大区域排版与基础表单样式，强调清晰可用。 */
+.app-shell {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 20px;
+  display: grid;
+  gap: 16px;
+}
+
+.card-section {
+  background: #ffffff;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  padding: 12px;
+}
+
+.form-block {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.form-block:last-child {
+  margin-bottom: 0;
+}
+
+input,
+select,
+button {
+  padding: 8px;
+  font-size: 14px;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:disabled,
+select:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.filter-row {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.filter-row label {
+  display: grid;
+  gap: 4px;
+}
+
+.placeholder-tip {
+  color: #6b7280;
+}
+
+.hint-text {
+  margin: 0;
+  color: #4b5563;
+  font-size: 13px;
+}
+
+.error-text {
+  margin: 0;
+  color: #b91c1c;
+  font-size: 13px;
+}
+
+.map-panel-wrapper {
+  width: 100%;
+}
+
+.map-container {
+  width: 100%;
+  height: 70vh;
+  min-height: 650px;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid #d1d5db;
+}
+
+.map-container-expanded {
+  height: 85vh;
+}
+
+@media (max-width: 768px) {
+  .map-container {
+    height: 70vh;
+    min-height: 540px;
+  }
+
+  .map-container-expanded {
+    height: 85vh;
+  }
+}
+
+.custom-point-icon-wrapper {
+  background: transparent;
+  border: none;
+}
+
+.custom-point-icon {
+  width: 100%;
+  height: 100%;
+  border-radius: 999px;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+}
+
+.custom-point-icon.start {
+  background: #16a34a;
+}
+
+.custom-point-icon.end {
+  background: #dc2626;
+}
+
+.custom-point-icon.via {
+  background: #2563eb;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.custom-point-icon.control {
+  background: #7c3aed;
+}
+
+.autocomplete-field {
+  position: relative;
+}
+
+.autocomplete-dropdown {
+  position: absolute;
+  z-index: 1200;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: #fff;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.12);
+  max-height: 240px;
+  overflow: auto;
+}
+
+.autocomplete-item {
+  width: 100%;
+  text-align: left;
+  padding: 8px;
+  border: 0;
+  border-bottom: 1px solid #eef2f7;
+  background: transparent;
+  display: grid;
+  gap: 2px;
+}
+
+.autocomplete-item:last-child {
+  border-bottom: 0;
+}
+
+.autocomplete-item small {
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.autocomplete-item.muted {
+  color: #6b7280;
+}
+
+.route-list,
+.waypoint-list {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0;
+  display: grid;
+  gap: 6px;
+}
+
+.route-list li,
+.waypoint-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.route-list li.active {
+  background: #eef2ff;
+  border-radius: 6px;
+  padding: 6px;
+}
+
+.waypoint-section {
+  margin-top: 10px;
+}
+
+.waypoint-actions,
+.waypoint-buttons {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.waypoint-item {
+  align-items: flex-start !important;
+}
+
+.map-section-with-toolbar {
+  position: relative;
+}
+
+.map-toolbar {
+  position: absolute;
+  right: 18px;
+  top: 12px;
+  z-index: 1300;
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.edit-mode-tabs {
+  display: flex;
+  gap: 6px;
+}
+
+.edit-mode-tabs .active {
+  background: #2563eb;
+  color: #fff;
+}
+
+.custom-point-icon.waypoint-selected {
+  background: #f59e0b;
+}
+
+
+.route-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.danger-btn {
+  border: 1px solid #dc2626;
+  color: #dc2626;
+  background: #fff;
+}
+
+.danger-btn:hover {
+  background: #fef2f2;
+}
+
+
+.autocomplete-input-row {
+  display: flex;
+  gap: 6px;
+}
+
+.tiny-btn {
+  padding: 4px 8px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.autocomplete-group-title {
+  padding: 6px 8px;
+  font-size: 12px;
+  color: #374151;
+  background: #f8fafc;
+  border-bottom: 1px solid #eef2f7;
+}
