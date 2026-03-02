@@ -2,8 +2,6 @@ import type { RoutePreference } from '../types/trip'
 
 const ROUTE_QUEUE_CONCURRENCY = 2
 const ROUTE_REQUEST_DELAY_MS = 200
-const INPUT_TIPS_CACHE_MAX = 200
-const INPUT_TIPS_CACHE_TTL_MS = 10 * 60 * 1000
 
 export interface AMapTip {
   id: string
@@ -32,11 +30,9 @@ export interface AMapPlaceSuggestion {
 
 export interface InputTipsQuery {
   keywords: string
-  type?: string
+  type?: 'city'
   city?: string
   citylimit?: boolean
-  datatype?: 'all' | 'poi' | 'bus' | 'busline'
-  location?: string
 }
 
 export interface DrivingRequestPoint {
@@ -63,13 +59,7 @@ type RouteTask = {
   reject: (reason?: unknown) => void
 }
 
-type CachedTipsEntry = {
-  expireAt: number
-  data: AMapPlaceSuggestion[]
-}
-
 const routeCache = new Map<string, DrivingRouteResult>()
-const inputTipsCache = new Map<string, CachedTipsEntry>()
 const routeTaskQueue: RouteTask[] = []
 let activeRouteTasks = 0
 
@@ -120,6 +110,7 @@ function enqueueRouteTask(run: () => Promise<DrivingRouteResult>): Promise<Drivi
     processRouteQueue()
   })
 }
+
 
 function toStringOrEmpty(value: unknown): string {
   return typeof value === 'string' ? value : ''
@@ -195,89 +186,54 @@ function dedupeTips(list: AMapPlaceSuggestion[]): AMapPlaceSuggestion[] {
   return result
 }
 
-function makeInputTipsCacheKey(query: InputTipsQuery): string {
-  return [
-    query.keywords.trim(),
-    query.city ?? '',
-    query.type ?? '',
-    query.location ?? '',
-    query.datatype ?? 'all',
-    query.citylimit ? '1' : '0',
-  ].join('|')
-}
-
-function trimInputTipsCache() {
-  while (inputTipsCache.size > INPUT_TIPS_CACHE_MAX) {
-    const oldest = inputTipsCache.keys().next().value
-    if (!oldest) return
-    inputTipsCache.delete(oldest)
-  }
-}
-
-function readCachedInputTips(cacheKey: string): AMapPlaceSuggestion[] | null {
-  const found = inputTipsCache.get(cacheKey)
-  if (!found) return null
-  if (found.expireAt <= Date.now()) {
-    inputTipsCache.delete(cacheKey)
-    return null
-  }
-  inputTipsCache.delete(cacheKey)
-  inputTipsCache.set(cacheKey, found)
-  return found.data
-}
-
-function writeCachedInputTips(cacheKey: string, tips: AMapPlaceSuggestion[]) {
-  inputTipsCache.delete(cacheKey)
-  inputTipsCache.set(cacheKey, { expireAt: Date.now() + INPUT_TIPS_CACHE_TTL_MS, data: tips })
-  trimInputTipsCache()
-}
-
 async function requestInputTips(
   query: InputTipsQuery,
   signal?: AbortSignal,
 ): Promise<{ tips: AMapPlaceSuggestion[]; error: AMapServiceError | null }> {
-  const cacheKey = makeInputTipsCacheKey(query)
-  const cached = readCachedInputTips(cacheKey)
-  if (cached) {
-    return { tips: cached, error: null }
-  }
-
   const url = new URL('/api/amap/inputtips', window.location.origin)
   url.searchParams.set('keywords', query.keywords)
-  url.searchParams.set('datatype', query.datatype ?? 'all')
   if (query.type) url.searchParams.set('type', query.type)
   if (query.city) url.searchParams.set('city', query.city)
-  if (query.location) url.searchParams.set('location', query.location)
   if (typeof query.citylimit === 'boolean') {
     url.searchParams.set('citylimit', query.citylimit ? 'true' : 'false')
   }
 
+  let raw: unknown = null
+
   try {
     const response = await fetch(`${url.pathname}${url.search}`, { signal })
-    const payload = (await response.json()) as {
-      ok?: boolean
-      data?: Array<{ id?: string; name?: string; district?: string; address?: string; location?: string; adcode?: string }>
-      cached?: boolean
-      reason?: string
-    }
+    raw = await response.json()
+    const payload = (raw ?? {}) as Record<string, unknown>
 
-    if (!response.ok || !payload.ok || !Array.isArray(payload.data)) {
+    const status = toStringOrEmpty(payload.status)
+    const info = toStringOrEmpty(payload.info)
+    const infocode = toStringOrEmpty(payload.infocode)
+    const rawTips = payload.tips
+
+    if (!response.ok || status !== '1' || !Array.isArray(rawTips)) {
       return {
         tips: [],
-        error: { message: '联想服务暂不可用，点击重试。' },
+        error: {
+          code: infocode || String(response.status),
+          message: info || '联想服务暂不可用，点击重试。',
+        },
       }
     }
 
+    const normalizedTips = rawTips.map((item) => normalizeRawTip(item))
+
     const sourceType: AMapPlaceSuggestion['sourceType'] = query.type === 'city' ? 'city' : 'poi'
-    const tips = payload.data
-      .map((item) => normalizeRawTip(item))
+    const tips = normalizedTips
       .map((item) => normalizeTip(item, sourceType))
       .filter((item): item is AMapPlaceSuggestion => Boolean(item))
 
-    writeCachedInputTips(cacheKey, tips)
     return { tips, error: null }
   } catch (error) {
     if ((error as Error).name === 'AbortError') return { tips: [], error: null }
+    if (import.meta.env.DEV) {
+      console.error('InputTips raw response', raw)
+      console.error(error)
+    }
     return { tips: [], error: { message: '联想服务暂不可用，点击重试。' } }
   }
 }
@@ -294,24 +250,19 @@ export async function searchAmapInputTips(
     type: 'city',
     city: query.city,
     citylimit: query.citylimit,
-    datatype: query.datatype,
-    location: query.location,
   }
 
   const poiQuery: InputTipsQuery = {
     keywords: q,
     city: query.city,
     citylimit: query.citylimit,
-    datatype: query.datatype,
-    type: query.type,
-    location: query.location,
   }
 
   const [cityResp, poiResp] = await Promise.all([requestInputTips(cityQuery, signal), requestInputTips(poiQuery, signal)])
 
   let fallbackPoi: AMapPlaceSuggestion[] = []
   if (query.citylimit && poiResp.tips.length <= 2) {
-    const fallbackResp = await requestInputTips({ keywords: q, citylimit: false, datatype: query.datatype }, signal)
+    const fallbackResp = await requestInputTips({ keywords: q, citylimit: false }, signal)
     fallbackPoi = fallbackResp.tips.map((item) => ({ ...item, sourceType: 'fallback-poi', isOutOfScope: true }))
   }
 

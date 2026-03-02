@@ -1,7 +1,5 @@
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
-// @ts-expect-error local JS proxy handler
-import { createInputTipsProxyHandler } from './server/amapInputTipsProxy.js'
 
 declare const process: { cwd: () => string }
 
@@ -25,6 +23,48 @@ async function fetchWithTimeout(targetUrl: string, timeoutMs: number): Promise<R
     return await fetch(targetUrl, { signal: controller.signal })
   } finally {
     clearTimeout(timeout)
+  }
+}
+
+function createInputTipsProxy(amapWebKey: string) {
+  return async function handleInputTips(req: any, res: any) {
+    if (!req.url) {
+      writeJson(res, 400, { status: '0', info: '缺少请求 URL', infocode: 'INVALID_REQUEST' })
+      return
+    }
+
+    const requestUrl = new URL(req.url, 'http://localhost')
+    const keywords = readOptionalParam(requestUrl, 'keywords')
+    const type = readOptionalParam(requestUrl, 'type')
+    const city = readOptionalParam(requestUrl, 'city')
+    const citylimit = readOptionalParam(requestUrl, 'citylimit')
+
+    if (!keywords) {
+      writeJson(res, 400, { status: '0', info: 'keywords 为必填参数', infocode: 'MISSING_KEYWORDS' })
+      return
+    }
+
+    if (!amapWebKey) {
+      writeJson(res, 500, { status: '0', info: '服务端未配置 AMAP_WEB_KEY', infocode: 'NO_AMAP_WEB_KEY' })
+      return
+    }
+
+    const targetUrl = new URL('https://restapi.amap.com/v3/assistant/inputtips')
+    targetUrl.searchParams.set('key', amapWebKey)
+    targetUrl.searchParams.set('keywords', keywords)
+    targetUrl.searchParams.set('datatype', 'all')
+    if (type) targetUrl.searchParams.set('type', type)
+    if (city) targetUrl.searchParams.set('city', city)
+    if (citylimit) targetUrl.searchParams.set('citylimit', citylimit)
+
+    try {
+      const upstream = await fetchWithTimeout(targetUrl.toString(), 5000)
+      const json = (await upstream.json()) as unknown
+      writeJson(res, upstream.status, json)
+    } catch (error) {
+      const message = (error as Error).name === 'AbortError' ? '高德输入提示请求超时（5s）' : '高德输入提示代理请求失败'
+      writeJson(res, 502, { status: '0', info: message, infocode: 'UPSTREAM_ERROR' })
+    }
   }
 }
 
@@ -77,8 +117,8 @@ function createDirectionProxy(amapWebKey: string) {
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
-  const amapWebKey = env.AMAP_KEY ?? env.AMAP_WEB_KEY ?? ''
-  const inputTipsProxy = createInputTipsProxyHandler({ amapKey: amapWebKey })
+  const amapWebKey = env.AMAP_WEB_KEY ?? ''
+  const inputTipsProxy = createInputTipsProxy(amapWebKey)
   const directionProxy = createDirectionProxy(amapWebKey)
 
   return {

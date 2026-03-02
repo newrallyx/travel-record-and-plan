@@ -15,8 +15,6 @@ interface PlaceAutocompleteProps {
   onSelect: (result: PlaceSelectResult) => void
   placeholder: string
   disabled?: boolean
-  minChars?: number
-  debounceMs?: number
 }
 
 function isAdministrative(item: AMapPlaceSuggestion): boolean {
@@ -29,8 +27,6 @@ function PlaceAutocomplete({
   onSelect,
   placeholder,
   disabled,
-  minChars = 2,
-  debounceMs = 500,
 }: PlaceAutocompleteProps) {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -39,7 +35,6 @@ function PlaceAutocomplete({
   const [anchorCity, setAnchorCity] = useState<string | null>(null)
   const requestIdRef = useRef(0)
   const lastKeywordRef = useRef('')
-  const activeControllerRef = useRef<AbortController | null>(null)
 
   const groupedCandidates = useMemo(() => {
     const inScope = candidates.filter((item) => !item.isOutOfScope)
@@ -55,21 +50,14 @@ function PlaceAutocomplete({
     }
 
     const q = valueText.trim()
-    if (q.length < minChars) {
-      activeControllerRef.current?.abort()
-      setLoading(false)
+    if (q.length < 2) {
       setCandidates([])
       setOpen(false)
       setError('')
       return
     }
 
-    if (activeControllerRef.current) {
-      activeControllerRef.current.abort()
-    }
     const controller = new AbortController()
-    activeControllerRef.current = controller
-
     const currentId = ++requestIdRef.current
     lastKeywordRef.current = q
 
@@ -81,39 +69,29 @@ function PlaceAutocomplete({
           keywords: q,
           city: anchorCity ?? undefined,
           citylimit: Boolean(anchorCity),
-          datatype: 'all',
         },
         controller.signal,
       )
-
-      if (controller.signal.aborted) {
-        setLoading(false)
-        return
-      }
       if (currentId !== requestIdRef.current || q !== lastKeywordRef.current) return
-
       setCandidates(tips)
       setOpen(true)
       if (apiError) {
         setError('联想服务暂不可用，点击重试。')
       }
       setLoading(false)
-    }, debounceMs)
+    }, 400)
 
     return () => {
       controller.abort()
       window.clearTimeout(timer)
     }
-  }, [disabled, valueText, anchorCity, minChars, debounceMs])
+  }, [disabled, valueText, anchorCity])
 
   const retrySearch = async () => {
     const q = valueText.trim()
-    if (q.length < minChars) return
+    if (q.length < 2) return
 
-    activeControllerRef.current?.abort()
     const controller = new AbortController()
-    activeControllerRef.current = controller
-
     setLoading(true)
     setError('')
     const { tips, error: apiError } = await searchAmapInputTips(
@@ -121,17 +99,13 @@ function PlaceAutocomplete({
         keywords: q,
         city: anchorCity ?? undefined,
         citylimit: Boolean(anchorCity),
-        datatype: 'all',
       },
       controller.signal,
     )
-
-    if (!controller.signal.aborted) {
-      setCandidates(tips)
-      setOpen(true)
-      if (apiError) setError('联想服务暂不可用，点击重试。')
-      setLoading(false)
-    }
+    setCandidates(tips)
+    setOpen(true)
+    if (apiError) setError('联想服务暂不可用，点击重试。')
+    setLoading(false)
   }
 
   const handleSelect = (candidate: AMapPlaceSuggestion) => {

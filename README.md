@@ -22,7 +22,7 @@ cp .env.example .env
 填入：
 
 ```bash
-AMAP_KEY=你的高德Web服务Key
+AMAP_WEB_KEY=你的高德Web服务Key
 ```
 
 > InputTips 与驾车规划都通过后端代理调用，不再在浏览器直接使用高德 key。
@@ -125,7 +125,7 @@ Array<{ id?: string; name: string; lat: number; lng: number; amapId?: string }>
 
 请检查：
 - `.env` 是否存在
-- `AMAP_KEY` 是否填写
+- `AMAP_WEB_KEY` 是否填写
 - 修改后是否重启了 `npm run dev`
 
 ### 6.2 接口限流 / 调用失败
@@ -140,10 +140,3 @@ Array<{ id?: string; name: string; lat: number; lng: number; amapId?: string }>
 - 策略下无可行路线
 
 系统会降级为直线并在地图提示中说明原因。
-
-
-## 7. InputTips 代理防刷与前端优化
-
-- 前端：最少 2 字符、500ms 防抖、AbortController 取消旧请求、LRU(200)+TTL(10 分钟) 缓存。
-- 后端：`/api/amap/inputtips` 代理高德 `v3/assistant/inputtips`，带参数约束、IP 限流（默认 60 req/min）、10 分钟缓存与失败降级（返回空数据 + reason）。
-- 安全：高德 key 仅放在服务端环境变量 `AMAP_KEY`，不透出到浏览器。
