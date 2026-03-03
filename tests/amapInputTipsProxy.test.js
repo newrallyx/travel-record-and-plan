@@ -99,3 +99,43 @@ test('rate limit should return 429', async () => {
   await handler(req, res3)
   assert.equal(res3.statusCode, 200)
 })
+
+
+test('empty keywords should return INVALID_KEYWORDS', async () => {
+  const handler = createInputTipsProxyHandler({
+    amapKey: 'k',
+    fetchImpl: async () => ({ json: async () => ({ tips: [] }) }),
+  })
+
+  const req = makeReq('/api/amap/inputtips?keywords=   ')
+  const res = makeRes()
+  await handler(req, res)
+
+  assert.equal(res.statusCode, 400)
+  assert.equal(res.json.reason, 'INVALID_KEYWORDS')
+  assert.match(res.json.message, /keywords/)
+})
+
+test('mode=city should not fail on type=city and should return 200', async () => {
+  const handler = createInputTipsProxyHandler({
+    amapKey: 'k',
+    fetchImpl: async () => ({
+      json: async () => ({
+        tips: [
+          { name: '北京', district: '北京市', location: '116.4,39.9' },
+          { name: '罗敷收费站', district: '', location: '110.1,34.1' },
+        ],
+      }),
+    }),
+  })
+
+  const req = makeReq('/api/amap/inputtips?keywords=罗敷收费站&datatype=all&type=city&mode=city&citylimit=false')
+  const res = makeRes()
+  await handler(req, res)
+
+  assert.equal(res.statusCode, 200)
+  assert.equal(res.json.ok, true)
+  assert.equal(res.json.reason, undefined)
+  assert.equal(res.json.data.length, 1)
+  assert.equal(res.json.data[0].name, '北京')
+})

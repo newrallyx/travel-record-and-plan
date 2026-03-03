@@ -82,6 +82,18 @@ function isSafeLocation(location) {
   return /^-?\d+(\.\d+)?,-?\d+(\.\d+)?$/.test(location)
 }
 
+function isAdministrativeLike(item) {
+  const name = item.name || ''
+  return /省|市|区|县|旗|盟|州|镇|乡|街道$/.test(name) || Boolean(item.district)
+}
+
+function normalizeMode(scopeOrMode) {
+  if (!scopeOrMode) return 'poi'
+  const value = scopeOrMode.trim().toLowerCase()
+  if (value === 'city') return 'city'
+  return 'poi'
+}
+
 function normalizeTips(raw) {
   const tips = Array.isArray(raw?.tips) ? raw.tips : []
   return tips
@@ -134,12 +146,23 @@ export function createInputTipsProxyHandler(options) {
       return writeJson(res, 403, { ok: false, data: [], cached: false, reason: 'FORBIDDEN_CLIENT' })
     }
 
-    const keywords = clean(requestUrl.searchParams.get('keywords')) || ''
+    const keywords = clean(requestUrl.searchParams.get('keywords'))
     const city = clean(requestUrl.searchParams.get('city'))
     const citylimit = clean(requestUrl.searchParams.get('citylimit'))
     const datatype = clean(requestUrl.searchParams.get('datatype')) || 'all'
-    const type = clean(requestUrl.searchParams.get('type'))
+    const rawType = clean(requestUrl.searchParams.get('type'))
     const location = clean(requestUrl.searchParams.get('location'))
+    const mode = normalizeMode(clean(requestUrl.searchParams.get('mode')) ?? clean(requestUrl.searchParams.get('scope')))
+
+    if (!keywords) {
+      return writeJson(res, 400, {
+        ok: false,
+        data: [],
+        cached: false,
+        reason: 'INVALID_KEYWORDS',
+        message: 'keywords 不能为空。',
+      })
+    }
 
     if (keywords.length < minKeywordLength) {
       return writeJson(res, 200, { ok: true, data: [], cached: false, reason: 'KEYWORDS_TOO_SHORT' })
@@ -149,12 +172,12 @@ export function createInputTipsProxyHandler(options) {
     }
 
     if (city && !isSafeCity(city)) return writeJson(res, 400, { ok: false, data: [], cached: false, reason: 'INVALID_CITY' })
-    if (type && !isSafeType(type)) return writeJson(res, 400, { ok: false, data: [], cached: false, reason: 'INVALID_TYPE' })
     if (location && !isSafeLocation(location)) {
       return writeJson(res, 400, { ok: false, data: [], cached: false, reason: 'INVALID_LOCATION' })
     }
 
-    const cacheKey = [keywords, city ?? '', type ?? '', location ?? '', datatype].join('|')
+    const type = rawType && isSafeType(rawType) ? rawType : null
+    const cacheKey = [keywords, city ?? '', mode, type ?? '', location ?? '', datatype].join('|')
     const cached = cache.get(cacheKey)
     if (cached) return writeJson(res, 200, { ok: true, data: cached, cached: true })
 
@@ -171,7 +194,9 @@ export function createInputTipsProxyHandler(options) {
     try {
       const upstream = await fetchWithTimeout(fetchImpl, targetUrl.toString(), requestTimeoutMs)
       const payload = await upstream.json()
-      const data = normalizeTips(payload)
+      const normalized = normalizeTips(payload)
+      // 城市模式不再转发 type=city 给高德；仅在代理层做行政区倾向过滤，避免 INVALID_TYPE。
+      const data = mode === 'city' ? normalized.filter(isAdministrativeLike) : normalized
       cache.set(cacheKey, data)
       return writeJson(res, 200, { ok: true, data, cached: false })
     } catch (error) {

@@ -32,6 +32,7 @@ export interface AMapPlaceSuggestion {
 
 export interface InputTipsQuery {
   keywords: string
+  mode?: 'poi' | 'city'
   type?: string
   city?: string
   citylimit?: boolean
@@ -199,6 +200,7 @@ function makeInputTipsCacheKey(query: InputTipsQuery): string {
   return [
     query.keywords.trim(),
     query.city ?? '',
+    query.mode ?? 'poi',
     query.type ?? '',
     query.location ?? '',
     query.datatype ?? 'all',
@@ -242,9 +244,13 @@ async function requestInputTips(
     return { tips: cached, error: null }
   }
 
+  const q = query.keywords.trim()
+  if (!q) return { tips: [], error: null }
+
   const url = new URL('/api/amap/inputtips', window.location.origin)
-  url.searchParams.set('keywords', query.keywords)
+  url.searchParams.set('keywords', q)
   url.searchParams.set('datatype', query.datatype ?? 'all')
+  if (query.mode) url.searchParams.set('mode', query.mode)
   if (query.type) url.searchParams.set('type', query.type)
   if (query.city) url.searchParams.set('city', query.city)
   if (query.location) url.searchParams.set('location', query.location)
@@ -268,7 +274,7 @@ async function requestInputTips(
       }
     }
 
-    const sourceType: AMapPlaceSuggestion['sourceType'] = query.type === 'city' ? 'city' : 'poi'
+    const sourceType: AMapPlaceSuggestion['sourceType'] = query.mode === 'city' ? 'city' : 'poi'
     const tips = payload.data
       .map((item) => normalizeRawTip(item))
       .map((item) => normalizeTip(item, sourceType))
@@ -291,7 +297,7 @@ export async function searchAmapInputTips(
 
   const cityQuery: InputTipsQuery = {
     keywords: q,
-    type: 'city',
+    mode: 'city',
     city: query.city,
     citylimit: query.citylimit,
     datatype: query.datatype,
