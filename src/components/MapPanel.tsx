@@ -5,7 +5,7 @@ import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png'
 import markerIcon from 'leaflet/dist/images/marker-icon.png'
 import markerShadow from 'leaflet/dist/images/marker-shadow.png'
 import type { CoordPoint, RouteSegment, Waypoint } from '../types/trip'
-import { planDrivingRoute, searchAmapInputTips } from '../services/amap'
+import { planCyclingRoute, planDrivingRoute, searchAmapInputTips } from '../services/amap'
 
 interface EndpointDraft {
   segmentId: string
@@ -245,8 +245,12 @@ function MapPanel({
             return
           }
 
-          const drivingPoints = markerPoints.map((point) => ({ lat: point.lat, lng: point.lon }))
-          const { route, error } = await planDrivingRoute(drivingPoints, segment.preference)
+          const planningPoints = markerPoints.map((point) => ({ lat: point.lat, lng: point.lon }))
+          const routeType = segment.routeType ?? 'DRIVING'
+          const { route, error } =
+            routeType === 'CYCLING'
+              ? await planCyclingRoute(planningPoints)
+              : await planDrivingRoute(planningPoints, segment.preference)
 
           let line = fallbackLineFromPoints(markerPoints)
           if (route?.polyline?.length) {

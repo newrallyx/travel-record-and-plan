@@ -7,8 +7,7 @@ export interface RoadPoint {
 
 function buildExcludeParam(routeType: RoutePreference): string {
   if (routeType === 'HIGHWAY_FIRST') return ''
-  if (routeType === 'LESS_TOLL') return 'motorway'
-  if (routeType === 'NORMAL_ROAD_FIRST') return 'motorway,ferry'
+  if (routeType === 'AVOID_TOLL') return 'motorway'
   return ''
 }
 

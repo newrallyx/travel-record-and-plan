@@ -1,5 +1,5 @@
 import { useMemo, useState, type FormEvent } from 'react'
-import type { CoordPoint, RoutePreference, Trip } from '../types/trip'
+import type { CoordPoint, RoutePreference, RouteType, Trip } from '../types/trip'
 import { routePreferenceOptions } from '../utils/routePreference'
 import { eachDayInRange } from '../utils/date'
 import PlaceAutocomplete from './PlaceAutocomplete'
@@ -15,6 +15,7 @@ interface TripEditorProps {
     endPoint: string
     viaPointsText: string
     preference: RoutePreference
+    routeType: RouteType
     startCoord?: CoordPoint
     endCoord?: CoordPoint
     startPlaceId?: string
@@ -40,6 +41,7 @@ function TripEditor({ trips, onAddTrip, onAddSegment }: TripEditorProps) {
   const [segmentEndPlaceId, setSegmentEndPlaceId] = useState<string | undefined>(undefined)
   const [segmentViaPointsText, setSegmentViaPointsText] = useState('')
   const [segmentPreference, setSegmentPreference] = useState<RoutePreference>('HIGHWAY_FIRST')
+  const [segmentRouteType, setSegmentRouteType] = useState<RouteType>('DRIVING')
   const [segmentError, setSegmentError] = useState('')
 
   const dateOptions = useMemo(() => {
@@ -95,6 +97,7 @@ function TripEditor({ trips, onAddTrip, onAddSegment }: TripEditorProps) {
       endPoint: segmentEndPoint.trim(),
       viaPointsText: segmentViaPointsText.trim(),
       preference: segmentPreference,
+      routeType: segmentRouteType,
       startCoord: segmentStartCoord,
       endCoord: segmentEndCoord,
       startPlaceId: segmentStartPlaceId,
@@ -110,6 +113,7 @@ function TripEditor({ trips, onAddTrip, onAddSegment }: TripEditorProps) {
     setSegmentEndPlaceId(undefined)
     setSegmentViaPointsText('')
     setSegmentPreference('HIGHWAY_FIRST')
+    setSegmentRouteType('DRIVING')
   }
 
   return (
@@ -196,9 +200,15 @@ function TripEditor({ trips, onAddTrip, onAddSegment }: TripEditorProps) {
           placeholder="途径点（逗号分隔）"
         />
 
+        <select value={segmentRouteType} onChange={(e) => setSegmentRouteType(e.target.value as RouteType)}>
+          <option value="DRIVING">驾车路线</option>
+          <option value="CYCLING">骑行路线（走小路）</option>
+        </select>
+
         <select
           value={segmentPreference}
           onChange={(e) => setSegmentPreference(e.target.value as RoutePreference)}
+          disabled={segmentRouteType === 'CYCLING'}
         >
           {routePreferenceOptions.map((option) => (
             <option key={option.value} value={option.value}>
