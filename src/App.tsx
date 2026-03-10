@@ -10,6 +10,7 @@ import type {
   CoordPoint,
   FilterState,
   RoutePreference,
+  RouteType,
   RouteSegment,
   RouteSummary,
   Trip,
@@ -94,8 +95,11 @@ function App() {
     if (editingSegmentId && listViewSegments.some((segment) => segment.id === editingSegmentId)) {
       return editingSegmentId
     }
-    return listViewSegments[0]?.id ?? null
-  }, [listViewSegments, editingSegmentId])
+    if (filters.segmentId && listViewSegments.some((segment) => segment.id === filters.segmentId)) {
+      return filters.segmentId
+    }
+    return null
+  }, [listViewSegments, editingSegmentId, filters.segmentId])
 
   const activeSegment = useMemo(
     () => listViewSegments.find((segment) => segment.id === activeSegmentId) ?? null,
@@ -191,13 +195,6 @@ function App() {
     if (current < 0 || target < 0 || target >= flat.length) return false
     return flat[target].dayId === ref.day.id
   }
-
-  const updateTripDateRangeByDays = (trip: Trip): Trip => {
-    const dates = trip.days.map((day) => day.date).sort()
-    if (!dates.length) return trip
-    return { ...trip, startDate: dates[0], endDate: dates[dates.length - 1] }
-  }
-
   const addTrip = (payload: { title: string; startDate: string; endDate: string }) => {
     setTripReview((prev) => ({
       trips: [
@@ -222,6 +219,7 @@ function App() {
     endPoint: string
     viaPointsText: string
     preference: RoutePreference
+    routeType: RouteType
     startCoord?: CoordPoint
     endCoord?: CoordPoint
     startPlaceId?: string
@@ -240,6 +238,7 @@ function App() {
           endPoint: payload.endPoint,
           viaPointsText: payload.viaPointsText,
           preference: payload.preference,
+          routeType: payload.routeType,
           startCoord: payload.startCoord,
           endCoord: payload.endCoord,
           startPlaceId: payload.startPlaceId,
@@ -248,18 +247,18 @@ function App() {
         }
 
         if (!matchedDay) {
-          return updateTripDateRangeByDays({
+          return {
             ...trip,
             days: [...trip.days, { id: payload.dayDate, date: payload.dayDate, routeSegments: [nextSegment] }],
-          })
+          }
         }
 
-        return updateTripDateRangeByDays({
+        return {
           ...trip,
           days: trip.days.map((day) =>
             day.date !== payload.dayDate ? day : { ...day, routeSegments: [...day.routeSegments, nextSegment] },
           ),
-        })
+        }
       }),
     }))
   }
@@ -299,7 +298,7 @@ function App() {
                   ),
                 },
           )
-          return updateTripDateRangeByDays({ ...trip, days })
+          return { ...trip, days }
         }
 
         const movedSegment = { ...ref.segment, name: nextName, date: nextDate }
@@ -319,7 +318,7 @@ function App() {
               )
             : [...daysAfterRemoval, { id: nextDate, date: nextDate, routeSegments: [movedSegment] }]
 
-        return updateTripDateRangeByDays({ ...trip, days: days.sort((a, b) => a.date.localeCompare(b.date)) })
+        return { ...trip, days: days.sort((a, b) => a.date.localeCompare(b.date)) }
       })
 
       return { trips: nextTrips }
@@ -514,7 +513,8 @@ function App() {
     })
   }
 
-  const routeTypeValue = activeSegment?.preference ?? 'HIGHWAY_FIRST'
+  const routePreferenceValue = activeSegment?.preference ?? 'HIGHWAY_FIRST'
+  const routeModeValue = activeSegment?.routeType ?? 'DRIVING'
 
   return (
     <main className="app-shell">
@@ -554,8 +554,13 @@ function App() {
         activeSegmentDate={activeSegmentDate}
         onEditSegment={(segmentId) => setEditingSegmentId(segmentId)}
         onDeleteSegment={deleteSegment}
-        routeType={routeTypeValue}
-        onChangeRouteType={(value) => {
+        routePreference={routePreferenceValue}
+        routeMode={routeModeValue}
+        onChangeRouteMode={(value) => {
+          if (!activeSegmentId) return
+          updateSegment(activeSegmentId, (segment) => ({ ...segment, routeType: value }))
+        }}
+        onChangeRoutePreference={(value) => {
           if (!activeSegmentId) return
           updateSegment(activeSegmentId, (segment) => ({ ...segment, preference: value }))
         }}

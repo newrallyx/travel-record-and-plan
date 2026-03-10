@@ -1,6 +1,7 @@
 // 旅程领域类型：统一定义 Trip / TripDay / RouteSegment 以及筛选与汇总类型。
 
-export type RoutePreference = 'HIGHWAY_FIRST' | 'LESS_TOLL' | 'NORMAL_ROAD_FIRST' | 'SHORTEST_TIME' | 'AVOID_TOLL'
+export type RoutePreference = 'HIGHWAY_FIRST' | 'AVOID_TOLL'
+export type RouteType = 'DRIVING' | 'CYCLING'
 
 export interface CoordPoint {
   lat: number
@@ -26,6 +27,7 @@ export interface RouteSegment {
   endPoint: string
   viaPointsText: string
   preference: RoutePreference
+  routeType?: RouteType
   startCoord?: CoordPoint
   endCoord?: CoordPoint
   startPlaceId?: string

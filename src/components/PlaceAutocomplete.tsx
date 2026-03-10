@@ -30,15 +30,19 @@ function PlaceAutocomplete({
   placeholder,
   disabled,
   minChars = 2,
-  debounceMs = 500,
+  debounceMs = 300,
 }: PlaceAutocompleteProps) {
-  const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [candidates, setCandidates] = useState<AMapPlaceSuggestion[]>([])
   const [error, setError] = useState('')
   const [anchorCity, setAnchorCity] = useState<string | null>(null)
+  const [isFocused, setIsFocused] = useState(false)
+  const [isComposing, setIsComposing] = useState(false)
+  const [hasUserEdited, setHasUserEdited] = useState(false)
+  const [showSuggestions, setShowSuggestions] = useState(false)
+
+  const initialValueRef = useRef(valueText)
   const requestIdRef = useRef(0)
-  const lastKeywordRef = useRef('')
   const activeControllerRef = useRef<AbortController | null>(null)
 
   const groupedCandidates = useMemo(() => {
@@ -48,18 +52,40 @@ function PlaceAutocomplete({
   }, [candidates])
 
   useEffect(() => {
-    if (disabled) {
-      setOpen(false)
+    if (!isFocused) {
+      initialValueRef.current = valueText
+      setHasUserEdited(false)
+      setIsComposing(false)
+      setShowSuggestions(false)
       setCandidates([])
+      setError('')
+      setLoading(false)
+      activeControllerRef.current?.abort()
+    }
+  }, [isFocused, valueText])
+
+  useEffect(() => {
+    if (disabled) {
+      setIsFocused(false)
+      setIsComposing(false)
+      setHasUserEdited(false)
+      setShowSuggestions(false)
+      setCandidates([])
+      setError('')
+      setLoading(false)
+      activeControllerRef.current?.abort()
       return
     }
 
     const q = valueText.trim()
-    if (q.length < minChars) {
+    const initial = initialValueRef.current.trim()
+    const shouldSearch = isFocused && hasUserEdited && !isComposing && q.length >= minChars && q !== initial
+
+    if (!shouldSearch) {
       activeControllerRef.current?.abort()
       setLoading(false)
       setCandidates([])
-      setOpen(false)
+      setShowSuggestions(false)
       setError('')
       return
     }
@@ -69,9 +95,7 @@ function PlaceAutocomplete({
     }
     const controller = new AbortController()
     activeControllerRef.current = controller
-
     const currentId = ++requestIdRef.current
-    lastKeywordRef.current = q
 
     const timer = window.setTimeout(async () => {
       setLoading(true)
@@ -86,29 +110,25 @@ function PlaceAutocomplete({
         controller.signal,
       )
 
-      if (controller.signal.aborted) {
-        setLoading(false)
-        return
-      }
-      if (currentId !== requestIdRef.current || q !== lastKeywordRef.current) return
+      if (controller.signal.aborted || currentId !== requestIdRef.current) return
 
-      setCandidates(tips)
-      setOpen(true)
-      if (apiError) {
-        setError('联想服务暂不可用，点击重试。')
-      }
       setLoading(false)
+      setCandidates(tips)
+      setError(apiError ? '联想服务暂不可用，点击重试。' : '')
+      setShowSuggestions(tips.length > 0)
     }, debounceMs)
 
     return () => {
       controller.abort()
       window.clearTimeout(timer)
     }
-  }, [disabled, valueText, anchorCity, minChars, debounceMs])
+  }, [anchorCity, debounceMs, disabled, hasUserEdited, isComposing, isFocused, minChars, valueText])
 
   const retrySearch = async () => {
     const q = valueText.trim()
-    if (q.length < minChars) return
+    const initial = initialValueRef.current.trim()
+    const shouldSearch = isFocused && hasUserEdited && !isComposing && q.length >= minChars && q !== initial
+    if (!shouldSearch) return
 
     activeControllerRef.current?.abort()
     const controller = new AbortController()
@@ -128,7 +148,7 @@ function PlaceAutocomplete({
 
     if (!controller.signal.aborted) {
       setCandidates(tips)
-      setOpen(true)
+      setShowSuggestions(tips.length > 0)
       if (apiError) setError('联想服务暂不可用，点击重试。')
       setLoading(false)
     }
@@ -147,7 +167,11 @@ function PlaceAutocomplete({
       amapId: candidate.id,
       raw: candidate,
     })
-    setOpen(false)
+
+    initialValueRef.current = candidate.name
+    setHasUserEdited(false)
+    setIsComposing(false)
+    setShowSuggestions(false)
     setCandidates([])
   }
 
@@ -157,13 +181,27 @@ function PlaceAutocomplete({
         <input
           value={valueText}
           onFocus={() => {
-            if (candidates.length || error) setOpen(true)
+            setIsFocused(true)
           }}
           onChange={(event) => {
+            setHasUserEdited(true)
             onValueTextChange(event.target.value)
           }}
+          onCompositionStart={() => {
+            setIsComposing(true)
+          }}
+          onCompositionEnd={(event) => {
+            setIsComposing(false)
+            if (event.currentTarget.value !== valueText) {
+              onValueTextChange(event.currentTarget.value)
+            }
+            setHasUserEdited(true)
+          }}
           onBlur={() => {
-            window.setTimeout(() => setOpen(false), 120)
+            window.setTimeout(() => {
+              setIsFocused(false)
+              setShowSuggestions(false)
+            }, 120)
           }}
           placeholder={placeholder}
           disabled={disabled}
@@ -175,6 +213,7 @@ function PlaceAutocomplete({
             onMouseDown={() => {
               setAnchorCity(null)
               setCandidates([])
+              setShowSuggestions(false)
             }}
           >
             清除范围
@@ -182,7 +221,7 @@ function PlaceAutocomplete({
         )}
       </div>
 
-      {open && (
+      {showSuggestions && (
         <div className="autocomplete-dropdown">
           {loading && <div className="autocomplete-item muted">搜索中...</div>}
           {!loading && error && (
@@ -193,7 +232,6 @@ function PlaceAutocomplete({
               </button>
             </div>
           )}
-          {!loading && !error && !candidates.length && <div className="autocomplete-item muted">未找到匹配地点</div>}
 
           {!loading && !error && groupedCandidates.inScope.length > 0 && (
             <div className="autocomplete-group-title">范围内结果</div>
