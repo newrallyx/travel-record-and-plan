@@ -47,6 +47,11 @@ interface SegmentTrack {
   line: CoordPoint[]
 }
 
+interface RouteBuildSnapshot {
+  segment: RouteSegment
+  buildKey: string
+}
+
 interface ViewportControllerProps {
   points: LatLngExpression[]
 }
@@ -157,6 +162,27 @@ function fallbackLineFromPoints(points: Array<{ lat: number; lon: number }>): Co
   return points.map((point) => ({ lat: point.lat, lon: point.lon }))
 }
 
+function buildSegmentRouteKey(segment: RouteSegment, endpointDraft?: EndpointDraft | null): string {
+  const startCoord = endpointDraft?.startCoord ?? segment.startCoord
+  const endCoord = endpointDraft?.endCoord ?? segment.endCoord
+  const startPoint = endpointDraft?.startPoint ?? segment.startPoint
+  const endPoint = endpointDraft?.endPoint ?? segment.endPoint
+  const waypoints = (segment.waypoints ?? [])
+    .map((point) => `${point.id}:${point.name}:${point.lat ?? ''}:${point.lng ?? ''}`)
+    .join('|')
+
+  return [
+    segment.id,
+    startPoint,
+    endPoint,
+    `${startCoord?.lat ?? ''},${startCoord?.lon ?? ''}`,
+    `${endCoord?.lat ?? ''},${endCoord?.lon ?? ''}`,
+    waypoints,
+    segment.routeType ?? 'DRIVING',
+    segment.preference,
+  ].join('::')
+}
+
 async function resolvePointByName(placeName: string): Promise<{ lat: number; lon: number } | null> {
   const { tips } = await searchAmapInputTips({ keywords: placeName, citylimit: false })
   const first = tips[0]
@@ -184,8 +210,18 @@ function MapPanel({
   const [draftLine, setDraftLine] = useState<CoordPoint[] | null>(null)
   const [originalLine, setOriginalLine] = useState<CoordPoint[] | null>(null)
   const buildRunIdRef = useRef(0)
+  const lastBuiltRouteKeyRef = useRef<Record<string, string>>({})
 
-  const segmentsToShow = useMemo(() => filteredSegments, [filteredSegments])
+  const segmentsToShow = useMemo<RouteBuildSnapshot[]>(
+    () =>
+      filteredSegments.map((segment) => ({
+        segment,
+        buildKey: buildSegmentRouteKey(segment, endpointDraft?.segmentId === segment.id ? endpointDraft : null),
+      })),
+    [filteredSegments, endpointDraft],
+  )
+
+  const routeBuildKey = useMemo(() => segmentsToShow.map((item) => item.buildKey).join('||'), [segmentsToShow])
 
   useEffect(() => {
     let active = true
@@ -197,12 +233,9 @@ function MapPanel({
         setLoading(false)
         setMessage('请选择旅程/日期/路段以查看轨迹')
         onTracksComputed({})
+        lastBuiltRouteKeyRef.current = {}
         return
       }
-
-      // 筛选范围变化时先清空旧线，避免异步请求期间旧轨迹残留。
-      setTracks([])
-      onTracksComputed({})
 
       setLoading(true)
       setMessage('正在通过高德加载路线...')
@@ -211,7 +244,7 @@ function MapPanel({
       const warnings: string[] = []
       const partialTracks: Array<SegmentTrack | null> = new Array(segmentsToShow.length).fill(null)
 
-      const tasks = segmentsToShow.map((segment, index) =>
+      const tasks = segmentsToShow.map(({ segment, buildKey }, index) =>
         (async () => {
           const segmentEndpointDraft = endpointDraft?.segmentId === segment.id ? endpointDraft : null
 
@@ -247,6 +280,19 @@ function MapPanel({
             return
           }
 
+          const hasReusableLine = Array.isArray(segment.points) && segment.points.length >= 2
+          const canReuse = hasReusableLine && lastBuiltRouteKeyRef.current[segment.id] === buildKey
+          if (canReuse) {
+            pointsForParent[segment.id] = segment.points as CoordPoint[]
+            partialTracks[index] = {
+              segmentId: segment.id,
+              segmentName: segment.name,
+              points: markerPoints,
+              line: segment.points as CoordPoint[],
+            }
+            return
+          }
+
           const planningPoints = markerPoints.map((point) => ({ lat: point.lat, lng: point.lon }))
           const routeType = segment.routeType ?? 'DRIVING'
           const { route, error } =
@@ -258,6 +304,7 @@ function MapPanel({
           if (route?.polyline?.length) {
             line = route.polyline.map(([lat, lng]) => ({ lat, lon: lng }))
             onDistanceComputed(segment.id, typeof route.distanceMeters === 'number' ? route.distanceMeters : null)
+            lastBuiltRouteKeyRef.current[segment.id] = buildKey
           } else {
             const reason = error?.message ?? '未知错误'
             warnings.push(`路段「${segment.name}」规划失败：${reason}，已降级为直线连接。`)
@@ -273,10 +320,6 @@ function MapPanel({
             points: markerPoints,
             line,
           }
-
-          const visibleTracks = partialTracks.filter((track): track is SegmentTrack => Boolean(track))
-          setTracks(visibleTracks)
-          onTracksComputed({ ...pointsForParent })
         })(),
       )
 
@@ -286,6 +329,8 @@ function MapPanel({
       setLoading(false)
 
       const finalTracks = partialTracks.filter((track): track is SegmentTrack => Boolean(track))
+      setTracks(finalTracks)
+      onTracksComputed(pointsForParent)
       if (!finalTracks.length) {
         setMessage('未解析出可展示路线，请检查起点/终点和途经点是否已选择候选。')
         return
@@ -299,7 +344,7 @@ function MapPanel({
     return () => {
       active = false
     }
-  }, [segmentsToShow, onTracksComputed, onDistanceComputed, endpointDraft])
+  }, [routeBuildKey, segmentsToShow, onTracksComputed, onDistanceComputed, endpointDraft])
 
   const editingTrack = useMemo(
     () => (editingSegmentId ? tracks.find((track) => track.segmentId === editingSegmentId) ?? null : null),

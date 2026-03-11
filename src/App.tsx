@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import FilterPanel from './components/FilterPanel'
 import MapPlaceholder from './components/MapPlaceholder'
 import MapPanel from './components/MapPanel'
@@ -356,10 +356,32 @@ function App() {
     setEditingSegmentId(null)
   }
 
-  const saveSegmentDistance = (segmentId: string, distanceMeters: number | null) => {
+  const saveSegmentDistance = useCallback((segmentId: string, distanceMeters: number | null) => {
     if (typeof distanceMeters !== 'number' || !Number.isFinite(distanceMeters) || distanceMeters <= 0) return
-    updateSegment(segmentId, (segment) => ({ ...segment, distanceMeters: Math.round(distanceMeters) }))
-  }
+    const nextDistance = Math.round(distanceMeters)
+
+    setTripReview((prev) => {
+      let changed = false
+      const nextTrips = prev.trips.map((trip) => {
+        let tripChanged = false
+        const nextDays = trip.days.map((day) => {
+          let dayChanged = false
+          const nextSegments = day.routeSegments.map((segment) => {
+            if (segment.id !== segmentId) return segment
+            if (segment.distanceMeters === nextDistance) return segment
+            dayChanged = true
+            tripChanged = true
+            changed = true
+            return { ...segment, distanceMeters: nextDistance }
+          })
+          return dayChanged ? { ...day, routeSegments: nextSegments } : day
+        })
+        return tripChanged ? { ...trip, days: nextDays } : trip
+      })
+
+      return changed ? { trips: nextTrips } : prev
+    })
+  }, [])
 
   const startWaypointEdit = (segmentId: string) => {
     const target = listViewSegments.find((segment) => segment.id === segmentId)
