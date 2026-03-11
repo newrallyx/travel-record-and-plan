@@ -308,6 +308,7 @@ function MapPanel({
           } else {
             const reason = error?.message ?? '未知错误'
             warnings.push(`路段「${segment.name}」规划失败：${reason}，已降级为直线连接。`)
+            onDistanceComputed(segment.id, null)
           }
 
           if (!active || runId !== buildRunIdRef.current) return
