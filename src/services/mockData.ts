@@ -6,6 +6,7 @@ export const mockTripReview: TripReview = {
     {
       id: 'trip-1',
       title: '川西环线复盘',
+      category: 'review',
       startDate: '2026-05-01',
       endDate: '2026-05-05',
       days: [
@@ -53,6 +54,7 @@ export const mockTripReview: TripReview = {
     {
       id: 'trip-2',
       title: '江南自驾复盘',
+      category: 'review',
       startDate: '2026-06-10',
       endDate: '2026-06-12',
       days: [
