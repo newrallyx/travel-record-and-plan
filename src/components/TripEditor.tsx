@@ -1,4 +1,4 @@
-import { useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import type { CoordPoint, RoutePreference, RouteType, Trip } from '../types/trip'
 import { routePreferenceOptions } from '../utils/routePreference'
 import { eachDayInRange } from '../utils/date'
@@ -43,6 +43,15 @@ function TripEditor({ trips, onAddTrip, onAddSegment }: TripEditorProps) {
   const [segmentPreference, setSegmentPreference] = useState<RoutePreference>('HIGHWAY_FIRST')
   const [segmentRouteType, setSegmentRouteType] = useState<RouteType>('DRIVING')
   const [segmentError, setSegmentError] = useState('')
+
+
+  useEffect(() => {
+    if (!segmentTripId) return
+    if (!trips.some((trip) => trip.id === segmentTripId)) {
+      setSegmentTripId('')
+      setSegmentDayDate('')
+    }
+  }, [trips, segmentTripId])
 
   const dateOptions = useMemo(() => {
     const selectedTrip = trips.find((trip) => trip.id === segmentTripId)

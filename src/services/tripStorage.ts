@@ -9,6 +9,7 @@ function normalizeTripReview(input: TripReview): TripReview {
     ...input,
     trips: input.trips.map((trip) => ({
       ...trip,
+      category: trip.category === 'plan' ? 'plan' : 'review',
       days: trip.days.map((day) => ({
         ...day,
         routeSegments: day.routeSegments.map((segment) => ({

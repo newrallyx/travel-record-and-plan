@@ -2,6 +2,7 @@
 
 export type RoutePreference = 'HIGHWAY_FIRST' | 'AVOID_TOLL'
 export type RouteType = 'DRIVING' | 'CYCLING'
+export type TripCategory = 'review' | 'plan'
 
 export interface CoordPoint {
   lat: number
@@ -34,6 +35,7 @@ export interface RouteSegment {
   endPlaceId?: string
   points?: CoordPoint[]
   distanceMeters?: number
+  routeBuildKey?: string
   waypoints?: Waypoint[]
 }
 
@@ -46,6 +48,7 @@ export interface TripDay {
 export interface Trip {
   id: string
   title: string
+  category: TripCategory
   order?: number
   startDate: string
   endDate: string

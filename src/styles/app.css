@@ -384,3 +384,31 @@ select:disabled {
   display: grid;
   gap: 4px;
 }
+
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.workspace-tabs {
+  display: inline-flex;
+  border: 1px solid #d1d5db;
+  border-radius: 999px;
+  padding: 2px;
+  background: #f8fafc;
+}
+
+.workspace-tabs button {
+  border: 0;
+  background: transparent;
+  border-radius: 999px;
+  padding: 6px 14px;
+}
+
+.workspace-tabs button.active {
+  background: #2563eb;
+  color: #fff;
+}
