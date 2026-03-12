@@ -22,16 +22,6 @@ function normalizeCoordPoint(value: unknown): CoordPoint | undefined {
   return point
 }
 
-function normalizeCoordPointArray(value: unknown): CoordPoint[] | undefined {
-  if (!Array.isArray(value)) return undefined
-
-  const points = value
-    .map((item) => normalizeCoordPoint(item))
-    .filter((item): item is CoordPoint => Boolean(item))
-
-  return points.length > 0 ? points : undefined
-}
-
 function normalizeWaypoint(value: unknown): Waypoint | undefined {
   if (!value || typeof value !== 'object') return undefined
 
@@ -71,7 +61,8 @@ function normalizeRouteSegment(segment: RouteSegment): RouteSegment {
     preference: segment.preference === 'AVOID_TOLL' ? 'AVOID_TOLL' : 'HIGHWAY_FIRST',
     startCoord: normalizedStartCoord,
     endCoord: normalizedEndCoord,
-    points: normalizeCoordPointArray(segment.points),
+    // points 已迁移到 IndexedDB，此处兼容旧数据但不再从 localStorage 回填。
+    points: undefined,
     waypoints: normalizeWaypoints(segment.waypoints),
   }
 }
@@ -91,8 +82,6 @@ function normalizeTripReview(input: TripReview): TripReview {
 }
 
 function toPersistedRouteSegment(segment: RouteSegment): RouteSegment {
-  const normalizedPoints = normalizeCoordPointArray(segment.points)
-
   return {
     id: segment.id,
     name: segment.name,
@@ -101,7 +90,6 @@ function toPersistedRouteSegment(segment: RouteSegment): RouteSegment {
     endPoint: segment.endPoint,
     startCoord: normalizeCoordPoint(segment.startCoord),
     endCoord: normalizeCoordPoint(segment.endCoord),
-    points: normalizedPoints,
     waypoints: normalizeWaypoints(segment.waypoints),
     routeType: segment.routeType ?? 'DRIVING',
     preference: segment.preference === 'AVOID_TOLL' ? 'AVOID_TOLL' : 'HIGHWAY_FIRST',

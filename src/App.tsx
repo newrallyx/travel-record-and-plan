@@ -6,6 +6,7 @@ import TripEditor from './components/TripEditor'
 import TripManageModal from './components/TripManageModal'
 import { useFilteredSegments } from './hooks/useFilteredSegments'
 import { loadTripReview, saveTripReview } from './services/tripStorage'
+import { deleteSegmentRouteCache, getSegmentRouteCache } from './services/routeCacheDb'
 import { formatDistance, getDayDistanceMeters, getTrackDistanceMeters, getTripDistanceMeters } from './utils/distance'
 import { buildSegmentRouteKey } from './utils/routeBuildKey'
 import type {
@@ -64,6 +65,70 @@ function App() {
   useEffect(() => {
     saveTripReview(tripReview)
   }, [tripReview])
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function hydrateSegmentRouteCache() {
+      try {
+        const patchMap = new Map<string, CoordPoint[]>()
+
+        for (const trip of tripReview.trips) {
+          for (const day of trip.days) {
+            for (const segment of day.routeSegments) {
+              const cache = await getSegmentRouteCache(segment.id)
+              if (!cache) continue
+
+              const buildKey = buildSegmentRouteKey(segment)
+              if (cache.routeBuildKey !== buildKey) continue
+
+              const samePoints =
+                Array.isArray(segment.points) &&
+                segment.points.length === cache.points.length &&
+                segment.points.every((point, idx) => point.lat === cache.points[idx].lat && point.lon === cache.points[idx].lon)
+
+              if (!samePoints) {
+                patchMap.set(segment.id, cache.points)
+              }
+            }
+          }
+        }
+
+        if (cancelled || patchMap.size === 0) return
+
+        setTripReview((prev) => {
+          let changed = false
+          const nextTrips = prev.trips.map((trip) => {
+            let tripChanged = false
+            const nextDays = trip.days.map((day) => {
+              let dayChanged = false
+              const nextSegments = day.routeSegments.map((segment) => {
+                const points = patchMap.get(segment.id)
+                if (!points) return segment
+
+                changed = true
+                dayChanged = true
+                tripChanged = true
+                return { ...segment, points }
+              })
+              return dayChanged ? { ...day, routeSegments: nextSegments } : day
+            })
+            return tripChanged ? { ...trip, days: nextDays } : trip
+          })
+
+          return changed ? { trips: nextTrips } : prev
+        })
+      } catch (error) {
+        console.error('[App] Failed to hydrate route cache from IndexedDB.', error)
+      }
+    }
+
+    void hydrateSegmentRouteCache()
+
+    return () => {
+      cancelled = true
+    }
+  }, [tripReview.trips])
 
   const workspaceTrips = useMemo(
     () =>
@@ -527,6 +592,11 @@ function App() {
     if (!confirmed) return
 
     const fallbackSegment = listViewSegments[payload.index]
+    const targetId = payload.segmentId ?? fallbackSegment?.id ?? null
+
+    if (targetId) {
+      void deleteSegmentRouteCache(targetId)
+    }
 
     setTripReview((prev) => ({
       trips: prev.trips.map((trip) => ({
@@ -549,8 +619,6 @@ function App() {
       })),
     }))
 
-    const targetId = payload.segmentId ?? fallbackSegment?.id ?? null
-
     if (targetId && editingSegmentId === targetId) {
       setEditingSegmentId(null)
     }
@@ -571,11 +639,16 @@ function App() {
     const target = workspaceTrips.find((trip) => trip.id === tripId)
     if (!target) return
 
+    const deletedSegmentIds = new Set(target.days.flatMap((day) => day.routeSegments.map((segment) => segment.id)))
     const segmentCount = target.days.reduce((sum, day) => sum + day.routeSegments.length, 0)
     const confirmed = window.confirm(
       `确定删除旅程“${target.title}”吗？将同时删除该旅程下的全部日期与路段数据（${segmentCount} 条路段）。此操作不可恢复。`,
     )
     if (!confirmed) return
+
+    for (const segmentId of deletedSegmentIds) {
+      void deleteSegmentRouteCache(segmentId)
+    }
 
     setTripReview((prev) => ({
       trips: prev.trips.filter((trip) => trip.id !== tripId),
@@ -585,7 +658,6 @@ function App() {
       setFilters({ tripId: '', dayId: '', segmentId: '' })
     }
 
-    const deletedSegmentIds = new Set(target.days.flatMap((day) => day.routeSegments.map((segment) => segment.id)))
     if (editingSegmentId && deletedSegmentIds.has(editingSegmentId)) {
       setEditingSegmentId(null)
     }
