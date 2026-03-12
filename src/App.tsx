@@ -7,6 +7,7 @@ import TripManageModal from './components/TripManageModal'
 import { useFilteredSegments } from './hooks/useFilteredSegments'
 import { loadTripReview, saveTripReview } from './services/tripStorage'
 import { formatDistance, getDayDistanceMeters, getTrackDistanceMeters, getTripDistanceMeters } from './utils/distance'
+import { buildSegmentRouteKey } from './utils/routeBuildKey'
 import type {
   CoordPoint,
   FilterState,
@@ -51,7 +52,6 @@ function App() {
   const [filters, setFilters] = useState<FilterState>({ tripId: '', dayId: '', segmentId: '' })
   const [editingSegmentId, setEditingSegmentId] = useState<string | null>(null)
   const [selectedWaypointId, setSelectedWaypointId] = useState<string | null>(null)
-  const [, setSegmentTrackPoints] = useState<Record<string, CoordPoint[]>>({})
 
   const [editingWaypointSegmentId, setEditingWaypointSegmentId] = useState<string | null>(null)
   const [waypointDrafts, setWaypointDrafts] = useState<Waypoint[]>([])
@@ -390,41 +390,73 @@ function App() {
     endCoord: CoordPoint
     points: CoordPoint[]
   }) => {
-    updateSegment(payload.segmentId, (segment) => ({
-      ...segment,
-      startCoord: payload.startCoord,
-      endCoord: payload.endCoord,
-      points: payload.points,
-    }))
+    updateSegment(payload.segmentId, (segment) => {
+      const nextSegment = {
+        ...segment,
+        startCoord: payload.startCoord,
+        endCoord: payload.endCoord,
+        points: payload.points,
+      }
+      return { ...nextSegment, routeBuildKey: buildSegmentRouteKey(nextSegment) }
+    })
     setEditingSegmentId(null)
   }
 
-  const saveSegmentDistance = useCallback((segmentId: string, distanceMeters: number | null) => {
-    if (typeof distanceMeters !== 'number' || !Number.isFinite(distanceMeters) || distanceMeters <= 0) return
-    const nextDistance = Math.round(distanceMeters)
+  const saveResolvedRoutes = useCallback(
+    (
+      patches: Array<{
+        segmentId: string
+        points: CoordPoint[]
+        distanceMeters: number | null
+        routeBuildKey: string
+      }>,
+    ) => {
+      if (!patches.length) return
+      const patchMap = new Map(patches.map((item) => [item.segmentId, item]))
 
-    setTripReview((prev) => {
-      let changed = false
-      const nextTrips = prev.trips.map((trip) => {
-        let tripChanged = false
-        const nextDays = trip.days.map((day) => {
-          let dayChanged = false
-          const nextSegments = day.routeSegments.map((segment) => {
-            if (segment.id !== segmentId) return segment
-            if (segment.distanceMeters === nextDistance) return segment
-            dayChanged = true
-            tripChanged = true
-            changed = true
-            return { ...segment, distanceMeters: nextDistance }
+      setTripReview((prev) => {
+        let changed = false
+
+        const nextTrips = prev.trips.map((trip) => {
+          let tripChanged = false
+          const nextDays = trip.days.map((day) => {
+            let dayChanged = false
+            const nextSegments = day.routeSegments.map((segment) => {
+              const patch = patchMap.get(segment.id)
+              if (!patch) return segment
+
+              const sameDistance =
+                (typeof segment.distanceMeters === 'number' ? segment.distanceMeters : null) ===
+                (typeof patch.distanceMeters === 'number' ? Math.round(patch.distanceMeters) : null)
+              const sameRouteKey = segment.routeBuildKey === patch.routeBuildKey
+              const samePoints =
+                Array.isArray(segment.points) &&
+                segment.points.length === patch.points.length &&
+                segment.points.every((point, idx) => point.lat === patch.points[idx].lat && point.lon === patch.points[idx].lon)
+
+              if (sameDistance && sameRouteKey && samePoints) return segment
+
+              changed = true
+              dayChanged = true
+              tripChanged = true
+
+              return {
+                ...segment,
+                points: patch.points,
+                distanceMeters: typeof patch.distanceMeters === 'number' ? Math.round(patch.distanceMeters) : segment.distanceMeters,
+                routeBuildKey: patch.routeBuildKey,
+              }
+            })
+            return dayChanged ? { ...day, routeSegments: nextSegments } : day
           })
-          return dayChanged ? { ...day, routeSegments: nextSegments } : day
+          return tripChanged ? { ...trip, days: nextDays } : trip
         })
-        return tripChanged ? { ...trip, days: nextDays } : trip
-      })
 
-      return changed ? { trips: nextTrips } : prev
-    })
-  }, [])
+        return changed ? { trips: nextTrips } : prev
+      })
+    },
+    [],
+  )
 
   const startSegmentMetaEdit = (segmentId: string) => {
     const ref = findSegmentRef(segmentId)
@@ -790,9 +822,8 @@ function App() {
         onCancelEdit={() => setEditingSegmentId(null)}
         onSaveEdit={saveSegmentTrack}
         selectedWaypoint={selectedWaypoint}
-        onTracksComputed={setSegmentTrackPoints}
-        onDistanceComputed={saveSegmentDistance}
-        endpointDraft={effectiveEndpointDraft}
+        onRouteResolved={saveResolvedRoutes}
+        allowAutoBuild={Boolean(filters.tripId)}
         onEndpointDraftChange={(payload) => {
           setEndpointDraft((prev) => {
             if (!prev || prev.segmentId !== payload.segmentId) return prev

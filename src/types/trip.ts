@@ -35,6 +35,7 @@ export interface RouteSegment {
   endPlaceId?: string
   points?: CoordPoint[]
   distanceMeters?: number
+  routeBuildKey?: string
   waypoints?: Waypoint[]
 }
 
