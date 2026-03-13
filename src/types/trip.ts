@@ -26,7 +26,11 @@ export interface RouteSegment {
   order?: number
   startPoint: string
   endPoint: string
-  viaPointsText: string
+  /**
+   * 历史兼容字段：旧版本以逗号分隔文本记录途经点。
+   * 新增/编辑/规划主流程统一使用 waypoints。
+   */
+  viaPointsText?: string
   preference: RoutePreference
   routeType?: RouteType
   startCoord?: CoordPoint
