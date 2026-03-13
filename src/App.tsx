@@ -216,8 +216,7 @@ function App() {
 
           return hasTripChanges ? { ...trip, days: nextDays } : trip
         })
-
-        return changed ? { trips: nextTrips } : prev
+        return tripChanged ? { ...trip, days: nextDays } : trip
       })
     },
     [setTripReview],
