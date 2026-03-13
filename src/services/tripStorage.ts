@@ -51,9 +51,25 @@ function normalizeWaypoints(value: unknown): Waypoint[] | undefined {
   return waypoints.length > 0 ? waypoints : undefined
 }
 
+function normalizeLegacyViaPointsText(viaPointsText: unknown): Waypoint[] | undefined {
+  if (typeof viaPointsText !== 'string') return undefined
+  const names = viaPointsText
+    .split(/[，,;；|]/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+
+  if (!names.length) return undefined
+
+  return names.map((name, index) => ({
+    id: `legacy-wp-${index}-${name}`,
+    name,
+  }))
+}
+
 function normalizeRouteSegment(segment: RouteSegment): RouteSegment {
   const normalizedStartCoord = normalizeCoordPoint(segment.startCoord)
   const normalizedEndCoord = normalizeCoordPoint(segment.endCoord)
+  const normalizedWaypoints = normalizeWaypoints(segment.waypoints)
 
   return {
     ...segment,
@@ -63,7 +79,9 @@ function normalizeRouteSegment(segment: RouteSegment): RouteSegment {
     endCoord: normalizedEndCoord,
     // points 已迁移到 IndexedDB，此处兼容旧数据但不再从 localStorage 回填。
     points: undefined,
-    waypoints: normalizeWaypoints(segment.waypoints),
+    waypoints: normalizedWaypoints ?? normalizeLegacyViaPointsText(segment.viaPointsText),
+    // 新主流程不再依赖 viaPointsText。
+    viaPointsText: undefined,
   }
 }
 
@@ -95,8 +113,6 @@ function toPersistedRouteSegment(segment: RouteSegment): RouteSegment {
     preference: segment.preference === 'AVOID_TOLL' ? 'AVOID_TOLL' : 'HIGHWAY_FIRST',
     distanceMeters: segment.distanceMeters,
     routeBuildKey: segment.routeBuildKey,
-    // 兼容当前业务字段，避免刷新后表单信息丢失。
-    viaPointsText: segment.viaPointsText,
     startPlaceId: segment.startPlaceId,
     endPlaceId: segment.endPlaceId,
     order: segment.order,

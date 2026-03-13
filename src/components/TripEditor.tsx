@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
-import type { CoordPoint, RoutePreference, RouteType, Trip } from '../types/trip'
+import type { CoordPoint, RoutePreference, RouteType, Trip, Waypoint } from '../types/trip'
 import { routePreferenceOptions } from '../utils/routePreference'
 import { eachDayInRange } from '../utils/date'
 import PlaceAutocomplete from './PlaceAutocomplete'
@@ -13,7 +13,7 @@ interface TripEditorProps {
     name: string
     startPoint: string
     endPoint: string
-    viaPointsText: string
+    waypoints: Waypoint[]
     preference: RoutePreference
     routeType: RouteType
     startCoord?: CoordPoint
@@ -21,6 +21,10 @@ interface TripEditorProps {
     startPlaceId?: string
     endPlaceId?: string
   }) => void
+}
+
+function createId(prefix: string): string {
+  return `${prefix}-${Date.now()}-${Math.floor(Math.random() * 10000)}`
 }
 
 // 旅程编辑区：仅保留“新增旅程 / 为日期新增路段”，日期选项由旅程起止日期动态生成。
@@ -39,11 +43,10 @@ function TripEditor({ trips, onAddTrip, onAddSegment }: TripEditorProps) {
   const [segmentEndCoord, setSegmentEndCoord] = useState<CoordPoint | undefined>(undefined)
   const [segmentStartPlaceId, setSegmentStartPlaceId] = useState<string | undefined>(undefined)
   const [segmentEndPlaceId, setSegmentEndPlaceId] = useState<string | undefined>(undefined)
-  const [segmentViaPointsText, setSegmentViaPointsText] = useState('')
+  const [segmentWaypoints, setSegmentWaypoints] = useState<Waypoint[]>([])
   const [segmentPreference, setSegmentPreference] = useState<RoutePreference>('HIGHWAY_FIRST')
   const [segmentRouteType, setSegmentRouteType] = useState<RouteType>('DRIVING')
   const [segmentError, setSegmentError] = useState('')
-
 
   useEffect(() => {
     if (!segmentTripId) return
@@ -104,7 +107,7 @@ function TripEditor({ trips, onAddTrip, onAddSegment }: TripEditorProps) {
       name: segmentName.trim(),
       startPoint: segmentStartPoint.trim(),
       endPoint: segmentEndPoint.trim(),
-      viaPointsText: segmentViaPointsText.trim(),
+      waypoints: segmentWaypoints,
       preference: segmentPreference,
       routeType: segmentRouteType,
       startCoord: segmentStartCoord,
@@ -120,7 +123,7 @@ function TripEditor({ trips, onAddTrip, onAddSegment }: TripEditorProps) {
     setSegmentEndCoord(undefined)
     setSegmentStartPlaceId(undefined)
     setSegmentEndPlaceId(undefined)
-    setSegmentViaPointsText('')
+    setSegmentWaypoints([])
     setSegmentPreference('HIGHWAY_FIRST')
     setSegmentRouteType('DRIVING')
   }
@@ -156,11 +159,7 @@ function TripEditor({ trips, onAddTrip, onAddSegment }: TripEditorProps) {
           ))}
         </select>
 
-        <select
-          value={segmentDayDate}
-          onChange={(e) => setSegmentDayDate(e.target.value)}
-          disabled={!segmentTripId}
-        >
+        <select value={segmentDayDate} onChange={(e) => setSegmentDayDate(e.target.value)} disabled={!segmentTripId}>
           <option value="">请选择日期</option>
           {dateOptions.map((date) => (
             <option key={date} value={date}>
@@ -203,11 +202,80 @@ function TripEditor({ trips, onAddTrip, onAddSegment }: TripEditorProps) {
           disabled={!segmentTripId}
         />
 
-        <input
-          value={segmentViaPointsText}
-          onChange={(e) => setSegmentViaPointsText(e.target.value)}
-          placeholder="途径点（逗号分隔）"
-        />
+        <div className="waypoint-section">
+          <p>途经点（Waypoints）</p>
+          <p>途经点数量：{segmentWaypoints.length}</p>
+          <div className="waypoint-actions">
+            <button type="button" onClick={() => setSegmentWaypoints((prev) => [...prev, { id: createId('wp'), name: '' }])}>
+              + 添加途经点
+            </button>
+          </div>
+          <ul className="waypoint-list">
+            {segmentWaypoints.map((waypoint, index) => (
+              <li key={waypoint.id} className="waypoint-item">
+                <span>#{index + 1}</span>
+                <PlaceAutocomplete
+                  valueText={waypoint.name}
+                  onValueTextChange={(text) => {
+                    setSegmentWaypoints((prev) =>
+                      prev.map((item) =>
+                        item.id === waypoint.id
+                          ? { ...item, name: text, lat: undefined, lng: undefined, amapId: undefined }
+                          : item,
+                      ),
+                    )
+                  }}
+                  onSelect={(result) => {
+                    setSegmentWaypoints((prev) =>
+                      prev.map((item) =>
+                        item.id === waypoint.id
+                          ? { ...item, name: result.label, lat: result.lat, lng: result.lng, amapId: result.amapId }
+                          : item,
+                      ),
+                    )
+                  }}
+                  placeholder="输入地名并选择候选"
+                  disabled={!segmentTripId}
+                />
+                <div className="waypoint-buttons">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSegmentWaypoints((prev) => {
+                        const idx = prev.findIndex((item) => item.id === waypoint.id)
+                        if (idx <= 0) return prev
+                        const copied = [...prev]
+                        const [item] = copied.splice(idx, 1)
+                        copied.splice(idx - 1, 0, item)
+                        return copied
+                      })
+                    }}
+                  >
+                    上移
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSegmentWaypoints((prev) => {
+                        const idx = prev.findIndex((item) => item.id === waypoint.id)
+                        if (idx < 0 || idx >= prev.length - 1) return prev
+                        const copied = [...prev]
+                        const [item] = copied.splice(idx, 1)
+                        copied.splice(idx + 1, 0, item)
+                        return copied
+                      })
+                    }}
+                  >
+                    下移
+                  </button>
+                  <button type="button" onClick={() => setSegmentWaypoints((prev) => prev.filter((item) => item.id !== waypoint.id))}>
+                    删除
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
 
         <select value={segmentRouteType} onChange={(e) => setSegmentRouteType(e.target.value as RouteType)}>
           <option value="DRIVING">驾车路线</option>
