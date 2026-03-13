@@ -257,7 +257,7 @@ function MapPlaceholder({
               </div>
             </div>
             <div className="route-item-meta">
-              <span>日期：{segment.date || activeSegmentDate || '未设置'}</span>
+              <span>日期：{segment.date || '未设置'}</span>
               <span>里程：{formatDistance(getTrackDistanceMeters(segment))}</span>
             </div>
           </li>

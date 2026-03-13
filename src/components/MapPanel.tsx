@@ -64,10 +64,6 @@ interface WaypointFocusControllerProps {
   waypoint: Waypoint | null
 }
 
-interface MapResizeControllerProps {
-  expanded: boolean
-}
-
 const defaultCenter: [number, number] = [35.8617, 104.1954]
 const CONTROL_POINT_STEP = 25
 const CONTROL_POINT_MAX = 16
@@ -128,13 +124,13 @@ function ViewportController({ points }: ViewportControllerProps) {
   return null
 }
 
-function MapResizeController({ expanded }: MapResizeControllerProps) {
+function MapResizeController() {
   const map = useMap()
 
   useEffect(() => {
     const timer = window.setTimeout(() => map.invalidateSize(), 80)
     return () => window.clearTimeout(timer)
-  }, [map, expanded])
+  }, [map])
 
   useEffect(() => {
     const handleResize = () => map.invalidateSize()
@@ -469,7 +465,7 @@ function MapPanel({
           wheelPxPerZoomLevel={160}
           className="map-container"
         >
-          <MapResizeController expanded={false} />
+          <MapResizeController />
           <TileLayer
             attribution='&copy; <a href="https://www.amap.com/">Amap</a>'
             url="https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}"

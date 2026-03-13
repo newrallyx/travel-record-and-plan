@@ -169,9 +169,6 @@ select:disabled {
   border: none;
 }
 
-.map-container-expanded {
-  min-height: 700px;
-}
 
 .custom-point-icon-wrapper {
   background: transparent;
