@@ -179,7 +179,7 @@ function App() {
       setTripReview((prev) => {
         let changed = false
         const nextTrips = prev.trips.map((trip) => {
-          let tripChanged = false
+          let hasTripChanges = false
           const nextDays = trip.days.map((day) => {
             let dayChanged = false
             const nextSegments = day.routeSegments.map((segment) => {
@@ -201,7 +201,7 @@ function App() {
 
               changed = true
               dayChanged = true
-              tripChanged = true
+              hasTripChanges = true
               return {
                 ...segment,
                 points: patch.points,
@@ -214,7 +214,7 @@ function App() {
             return dayChanged ? { ...day, routeSegments: nextSegments } : day
           })
 
-          return tripChanged ? { ...trip, days: nextDays } : trip
+          return hasTripChanges ? { ...trip, days: nextDays } : trip
         })
         return tripChanged ? { ...trip, days: nextDays } : trip
       })
