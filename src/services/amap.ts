@@ -2,6 +2,7 @@ import type { RoutePreference } from '../types/trip'
 
 const ROUTE_QUEUE_CONCURRENCY = 2
 const ROUTE_REQUEST_DELAY_MS = 200
+const ROUTE_RATE_LIMIT_COOLDOWN_MS = 3000
 const INPUT_TIPS_CACHE_MAX = 200
 const INPUT_TIPS_CACHE_TTL_MS = 10 * 60 * 1000
 
@@ -73,7 +74,9 @@ type CachedTipsEntry = {
 const routeCache = new Map<string, DrivingRouteResult>()
 const inputTipsCache = new Map<string, CachedTipsEntry>()
 const routeTaskQueue: RouteTask[] = []
+const inflightRouteTasks = new Map<string, Promise<{ route: DrivingRouteResult | null; error: AMapServiceError | null }>>()
 let activeRouteTasks = 0
+let routeQueuePauseUntil = 0
 
 function toLonLatText(point: DrivingRequestPoint): string {
   return `${point.lng},${point.lat}`
@@ -97,7 +100,23 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => window.setTimeout(resolve, ms))
 }
 
+function isRouteRateLimitError(error: unknown): boolean {
+  const message = String((error as { message?: unknown })?.message ?? error ?? '').toUpperCase()
+  return message.includes('CUPQS_HAS_EXCEEDED_THE_LIMIT') || message.includes('10021') || message.includes('RATE_LIMIT')
+}
+
+function pauseRouteQueueForRateLimit() {
+  const nextPauseUntil = Date.now() + ROUTE_RATE_LIMIT_COOLDOWN_MS
+  routeQueuePauseUntil = Math.max(routeQueuePauseUntil, nextPauseUntil)
+}
+
 function processRouteQueue() {
+  const now = Date.now()
+  if (routeQueuePauseUntil > now) {
+    window.setTimeout(processRouteQueue, routeQueuePauseUntil - now)
+    return
+  }
+
   while (activeRouteTasks < ROUTE_QUEUE_CONCURRENCY && routeTaskQueue.length) {
     const nextTask = routeTaskQueue.shift()
     if (!nextTask) return
@@ -497,6 +516,21 @@ async function planDrivingRouteRaw(
   }
 }
 
+function withRouteInFlightDedup(
+  key: string,
+  createTask: () => Promise<{ route: DrivingRouteResult | null; error: AMapServiceError | null }>,
+): Promise<{ route: DrivingRouteResult | null; error: AMapServiceError | null }> {
+  const existing = inflightRouteTasks.get(key)
+  if (existing) return existing
+
+  const task = createTask().finally(() => {
+    inflightRouteTasks.delete(key)
+  })
+
+  inflightRouteTasks.set(key, task)
+  return task
+}
+
 export async function planDrivingRoute(
   points: DrivingRequestPoint[],
   preference: RoutePreference,
@@ -510,22 +544,29 @@ export async function planDrivingRoute(
     }
   }
 
-  const result = await enqueueRouteTask(async () => {
-    await sleep(ROUTE_REQUEST_DELAY_MS)
-    const { route, error } = await planDrivingRouteRaw(points, preference, routeKey)
-    if (!route || error) {
-      throw error ?? { message: '驾车规划失败' }
+  return withRouteInFlightDedup(`DRIVING::${routeKey}`, async () => {
+    const result = await enqueueRouteTask(async () => {
+      await sleep(ROUTE_REQUEST_DELAY_MS)
+      const { route, error } = await planDrivingRouteRaw(points, preference, routeKey)
+      if (!route || error) {
+        throw error ?? { message: '驾车规划失败' }
+      }
+      return route
+    })
+      .then((route) => ({ route, error: null as AMapServiceError | null }))
+      .catch((error: AMapServiceError) => {
+        if (isRouteRateLimitError(error)) {
+          pauseRouteQueueForRateLimit()
+        }
+        return { route: null, error }
+      })
+
+    if (result.route) {
+      routeCache.set(routeKey, result.route)
     }
-    return route
+
+    return result
   })
-    .then((route) => ({ route, error: null as AMapServiceError | null }))
-    .catch((error: AMapServiceError) => ({ route: null, error }))
-
-  if (result.route) {
-    routeCache.set(routeKey, result.route)
-  }
-
-  return result
 }
 
 export async function planCyclingRoute(
@@ -563,7 +604,14 @@ export async function planCyclingRoute(
     return route
   }
 
-  return enqueueRouteTask(run)
-    .then((route) => ({ route, error: null as AMapServiceError | null }))
-    .catch((error: AMapServiceError) => ({ route: null, error: { message: error?.message || '高德骑行规划请求失败，请检查网络或稍后重试。' } }))
+  return withRouteInFlightDedup(`CYCLING::${routeKey}`, () =>
+    enqueueRouteTask(run)
+      .then((route) => ({ route, error: null as AMapServiceError | null }))
+      .catch((error: AMapServiceError) => {
+        if (isRouteRateLimitError(error)) {
+          pauseRouteQueueForRateLimit()
+        }
+        return { route: null, error: { message: error?.message || '高德骑行规划请求失败，请检查网络或稍后重试。' } }
+      }),
+  )
 }

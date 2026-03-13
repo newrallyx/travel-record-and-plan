@@ -6,6 +6,7 @@ import markerIcon from 'leaflet/dist/images/marker-icon.png'
 import markerShadow from 'leaflet/dist/images/marker-shadow.png'
 import type { CoordPoint, RouteSegment, Waypoint } from '../types/trip'
 import { planCyclingRoute, planDrivingRoute, searchAmapInputTips } from '../services/amap'
+import { saveSegmentRouteCache } from '../services/routeCacheDb'
 import { buildSegmentRouteKey } from '../utils/routeBuildKey'
 
 interface ResolvedRoutePatch {
@@ -292,6 +293,11 @@ function MapPanel({
               points: line,
               distanceMeters: typeof route.distanceMeters === 'number' ? route.distanceMeters : null,
               routeBuildKey: buildKey,
+            })
+            void saveSegmentRouteCache({
+              segmentId: segment.id,
+              routeBuildKey: buildKey,
+              points: line,
             })
           } else {
             const reason = error?.message ?? '未知错误'
