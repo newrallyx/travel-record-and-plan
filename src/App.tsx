@@ -282,16 +282,29 @@ function App() {
 
       <div className="workspace-layout">
         <aside className="sidebar-column">
-          <TripEditor trips={workspaceTrips} onAddTrip={tripManager.addTrip} onAddSegment={tripManager.addSegment} />
+          {!tripManagerOpen ? (
+            <>
+              <TripEditor trips={workspaceTrips} onAddTrip={tripManager.addTrip} onAddSegment={tripManager.addSegment} />
 
-          <FilterPanel
-            trips={workspaceTrips}
-            filters={filters}
-            onChange={setFilters}
-            onOpenTripManager={() => setTripManagerOpen(true)}
-            tripDistanceText={tripDistanceText}
-            dayDistanceText={dayDistanceText}
-          />
+              <FilterPanel
+                trips={workspaceTrips}
+                filters={filters}
+                onChange={setFilters}
+                onOpenTripManager={() => setTripManagerOpen(true)}
+                tripDistanceText={tripDistanceText}
+                dayDistanceText={dayDistanceText}
+              />
+            </>
+          ) : (
+            <TripManageModal
+              trips={workspaceTrips}
+              onClose={() => setTripManagerOpen(false)}
+              onDeleteTrip={tripManager.deleteTrip}
+              onMoveTrip={tripManager.moveTrip}
+              onReorderTrips={tripManager.reorderTrips}
+              onUpdateTrip={tripManager.updateTrip}
+            />
+          )}
         </aside>
 
         <section className="map-column">
@@ -437,15 +450,6 @@ function App() {
         </aside>
       </div>
 
-      <TripManageModal
-        open={tripManagerOpen}
-        trips={workspaceTrips}
-        onClose={() => setTripManagerOpen(false)}
-        onDeleteTrip={tripManager.deleteTrip}
-        onMoveTrip={tripManager.moveTrip}
-        onReorderTrips={tripManager.reorderTrips}
-        onUpdateTrip={tripManager.updateTrip}
-      />
     </main>
   )
 }
