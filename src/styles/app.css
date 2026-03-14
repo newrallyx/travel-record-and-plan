@@ -340,6 +340,31 @@ select:disabled {
 
 .waypoint-section { margin-top: 10px; }
 
+.endpoint-readonly-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.endpoint-readonly-card {
+  border: 1px solid #dbe5f7;
+  border-radius: 8px;
+  background: #f8fbff;
+  padding: 8px;
+  display: grid;
+  gap: 4px;
+}
+
+.endpoint-readonly-card small {
+  color: #6b7280;
+}
+
+.endpoint-readonly-card span {
+  color: #475569;
+  font-size: 12px;
+}
+
 .waypoint-actions,
 .waypoint-buttons {
   display: flex;

@@ -60,9 +60,11 @@ VITE_APP_MODE=readonly-demo npm run build
 ```
 
 只读展示版特点：
-- 数据来自仓库内置演示数据（`src/demo/demoData.ts`），不依赖访问者浏览器本地存储。
+- 数据来自 `public/demo-data.json` 静态文件，启动时通过 `fetch('/demo-data.json')` 加载，不依赖访问者浏览器本地存储。
 - 新增/编辑/删除/排序/保存等写操作在 UI 与逻辑层双重禁用。
 - 地图优先展示演示数据中已保存轨迹，不主动触发按需规划，减少高德 API 消耗。
+
+可将你导出的完整真实旅程数据直接放入 `public/demo-data.json`（建议保持 `TripReview` 结构），即可在 readonly-demo 下展示全部旅程。
 
 ### 2.2 从当前数据导出演示 JSON（开发辅助）
 

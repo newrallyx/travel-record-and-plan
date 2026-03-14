@@ -2,6 +2,11 @@ import PlaceAutocomplete from './PlaceAutocomplete'
 import type { RoutePreference, RouteSegment, RouteSummary, RouteType, Waypoint } from '../types/trip'
 import { formatDistance, getTrackDistanceMeters } from '../utils/distance'
 
+function formatCoordText(coord?: { lat: number; lon: number }): string {
+  if (!coord) return '未解析坐标'
+  return `${coord.lat.toFixed(6)}, ${coord.lon.toFixed(6)}`
+}
+
 interface FilterContext {
   tripName: string
   dayDate: string
@@ -308,42 +313,57 @@ function MapPlaceholder({
             </div>
           )}
 
-          <div className="endpoint-grid">
-            <div>
-              <small>起点</small>
-              <PlaceAutocomplete
-                valueText={endpointDraft?.startPoint ?? ''}
-                onValueTextChange={(text) => onUpdateEndpointText('startPoint', text)}
-                onSelect={(result) =>
-                  onSelectEndpointPlace('startPoint', {
-                    label: result.label,
-                    lat: result.lat,
-                    lng: result.lng,
-                    amapId: result.amapId,
-                  })
-                }
-                placeholder="输入起点地名"
-                disabled={isReadonlyMode || !endpointEditMode}
-              />
+          {!endpointEditMode ? (
+            <div className="endpoint-readonly-grid">
+              <div className="endpoint-readonly-card">
+                <small>起点</small>
+                <strong>{activeSegment?.startPoint || '未设置起点'}</strong>
+                <span>{formatCoordText(activeSegment?.startCoord)}</span>
+              </div>
+              <div className="endpoint-readonly-card">
+                <small>终点</small>
+                <strong>{activeSegment?.endPoint || '未设置终点'}</strong>
+                <span>{formatCoordText(activeSegment?.endCoord)}</span>
+              </div>
             </div>
-            <div>
-              <small>终点</small>
-              <PlaceAutocomplete
-                valueText={endpointDraft?.endPoint ?? ''}
-                onValueTextChange={(text) => onUpdateEndpointText('endPoint', text)}
-                onSelect={(result) =>
-                  onSelectEndpointPlace('endPoint', {
-                    label: result.label,
-                    lat: result.lat,
-                    lng: result.lng,
-                    amapId: result.amapId,
-                  })
-                }
-                placeholder="输入终点地名"
-                disabled={isReadonlyMode || !endpointEditMode}
-              />
+          ) : (
+            <div className="endpoint-grid">
+              <div>
+                <small>起点</small>
+                <PlaceAutocomplete
+                  valueText={endpointDraft?.startPoint ?? ''}
+                  onValueTextChange={(text) => onUpdateEndpointText('startPoint', text)}
+                  onSelect={(result) =>
+                    onSelectEndpointPlace('startPoint', {
+                      label: result.label,
+                      lat: result.lat,
+                      lng: result.lng,
+                      amapId: result.amapId,
+                    })
+                  }
+                  placeholder="输入起点地名"
+                  disabled={isReadonlyMode || !endpointEditMode}
+                />
+              </div>
+              <div>
+                <small>终点</small>
+                <PlaceAutocomplete
+                  valueText={endpointDraft?.endPoint ?? ''}
+                  onValueTextChange={(text) => onUpdateEndpointText('endPoint', text)}
+                  onSelect={(result) =>
+                    onSelectEndpointPlace('endPoint', {
+                      label: result.label,
+                      lat: result.lat,
+                      lng: result.lng,
+                      amapId: result.amapId,
+                    })
+                  }
+                  placeholder="输入终点地名"
+                  disabled={isReadonlyMode || !endpointEditMode}
+                />
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
         <div className="waypoint-section">
@@ -428,6 +448,7 @@ function MapPlaceholder({
               </li>
             ))}
           </ul>
+          {!waypoints.length && <p className="hint-text">当前路段无途经点。</p>}
         </div>
 
         <p>总里程：{summary.totalDistanceText}</p>
