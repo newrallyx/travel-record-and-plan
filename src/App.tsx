@@ -195,32 +195,35 @@ function App() {
   )
 
   const mapInfo = useMemo(() => {
+    const dateLabel = selectedDay?.date ?? (isAllTripsSelected ? '全部日期' : filterContext.dayDate)
+    const cacheStatus = filters.tripId && filters.dayId && filters.segmentId && mapRenderSegments.length <= 3 ? '按需规划' : '缓存优先'
+
     if (activeSegment) {
       return {
-        title: activeSegment.name,
-        meta: `日期：${segmentEditing.activeSegmentDate} · 里程：${formatDistance(getTrackDistanceMeters(activeSegment))}`,
+        summary: `${activeSegment.name} · ${segmentEditing.activeSegmentDate || dateLabel} · 路段数 ${mapRenderSegments.length} · 缓存状态 ${cacheStatus}`,
       }
     }
 
     if (isAllTripsSelected) {
       return {
-        title: '全部路线',
-        meta: `当前共 ${mapRenderSegments.length} 条轨迹 · 筛选：${filterContext.dayDate}`,
+        summary: `全部路线 · ${dateLabel} · 路段数 ${mapRenderSegments.length} · 缓存状态 ${cacheStatus}`,
       }
     }
 
     return {
-      title: selectedTrip?.title ?? '当前路线',
-      meta: `日期：${selectedDay?.date ?? '全部日期'} · 路段数：${mapRenderSegments.length}`,
+      summary: `${selectedTrip?.title ?? '当前路线'} · ${dateLabel} · 路段数 ${mapRenderSegments.length} · 缓存状态 ${cacheStatus}`,
     }
   }, [
     activeSegment,
     segmentEditing.activeSegmentDate,
     isAllTripsSelected,
+    selectedDay?.date,
+    filters.tripId,
+    filters.dayId,
+    filters.segmentId,
     mapRenderSegments.length,
     filterContext.dayDate,
     selectedTrip?.title,
-    selectedDay?.date,
   ])
 
   const saveResolvedRoutes = useCallback(
@@ -306,18 +309,7 @@ function App() {
       <div className="workspace-layout">
         <aside className="sidebar-column">
           {!tripManagerOpen ? (
-            <>
-              <TripEditor trips={workspaceTrips} onAddTrip={tripManager.addTrip} onAddSegment={tripManager.addSegment} />
-
-              <FilterPanel
-                trips={workspaceTrips}
-                filters={filters}
-                onChange={setFilters}
-                onOpenTripManager={() => setTripManagerOpen(true)}
-                tripDistanceText={tripDistanceText}
-                dayDistanceText={dayDistanceText}
-              />
-            </>
+            <TripEditor trips={workspaceTrips} onAddTrip={tripManager.addTrip} onAddSegment={tripManager.addSegment} />
           ) : (
             <TripManageModal
               trips={workspaceTrips}
@@ -331,6 +323,10 @@ function App() {
         </aside>
 
         <section className="map-column">
+          <div className="map-column-header-row">
+            <span>{mapInfo.summary}</span>
+          </div>
+
           <div className="map-canvas-wrap">
             <MapPanel
               filteredSegments={mapRenderSegments}
@@ -356,6 +352,15 @@ function App() {
               }}
             />
           </div>
+
+          <FilterPanel
+            trips={workspaceTrips}
+            filters={filters}
+            onChange={setFilters}
+            onOpenTripManager={() => setTripManagerOpen(true)}
+            tripDistanceText={tripDistanceText}
+            dayDistanceText={dayDistanceText}
+          />
         </section>
 
         <aside className="detail-column">

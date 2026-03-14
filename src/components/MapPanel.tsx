@@ -428,11 +428,8 @@ function MapPanel({
 
   return (
     <section className="card-section map-section-with-toolbar">
-      <div className="map-top-info">
-        <strong title={mapInfo.title}>{mapInfo.title}</strong>
-        <span>{mapInfo.meta}</span>
-      </div>
-      {(loading || message) && <p className="hint-text">{loading ? '正在加载轨迹点位...' : message}</p>}
+      {loading && <p className="hint-text">正在加载轨迹点位...</p>}
+      {!loading && message.startsWith('未解析') && <p className="hint-text">{message}</p>}
 
       {editingSegmentId && (
         <div className="map-toolbar">
