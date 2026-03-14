@@ -38,7 +38,7 @@ interface MapPlaceholderProps {
   onOpenTripManager: () => void
   onDeleteTrip: (tripId: string) => void
 
-  filteredSegments: RouteSegment[]
+  filteredSegments: Array<RouteSegment & { dayDate?: string }>
   summary: RouteSummary
   filterContext: FilterContext
   editingSegmentId: string | null
@@ -240,22 +240,25 @@ function MapPlaceholder({
       <p>路段名称列表：</p>
       <ul className="route-list">
         {filteredSegments.map((segment, index) => (
-          <li key={segment.id} className={segment.id === activeSegmentId ? 'active' : ''}>
-            <span>
-              {segment.name}
-              <small> · 里程：{formatDistance(getTrackDistanceMeters(segment))}</small>
-            </span>
-            <div className="route-actions">
-              <button type="button" onClick={() => onEditSegment(segment.id)}>
-                {editingSegmentId === segment.id ? '编辑中' : '编辑轨迹'}
-              </button>
-              <button
-                type="button"
-                className="danger-btn"
-                onClick={() => onDeleteSegment({ segmentId: segment.id, index, name: segment.name })}
-              >
-                删除
-              </button>
+          <li key={segment.id} className={`route-item ${segment.id === activeSegmentId ? 'active' : ''}`}>
+            <div className="route-item-header">
+              <strong title={segment.name}>{segment.name}</strong>
+              <div className="route-actions">
+                <button type="button" onClick={() => onEditSegment(segment.id)}>
+                  {editingSegmentId === segment.id ? '编辑中' : '编辑轨迹'}
+                </button>
+                <button
+                  type="button"
+                  className="danger-btn"
+                  onClick={() => onDeleteSegment({ segmentId: segment.id, index, name: segment.name })}
+                >
+                  删除
+                </button>
+              </div>
+            </div>
+            <div className="route-item-meta">
+              <span>日期：{segment.date || segment.dayDate || '未设置'}</span>
+              <span>里程：{formatDistance(getTrackDistanceMeters(segment))}</span>
             </div>
           </li>
         ))}
