@@ -3,7 +3,6 @@ import type { Trip } from '../types/trip'
 import { formatDistance, getTripDistanceMeters } from '../utils/distance'
 
 interface TripManageModalProps {
-  open: boolean
   trips: Trip[]
   onClose: () => void
   onDeleteTrip: (tripId: string) => void
@@ -23,7 +22,6 @@ function segmentCountOfTrip(trip: Trip): number {
 }
 
 function TripManageModal({
-  open,
   trips,
   onClose,
   onDeleteTrip,
@@ -38,54 +36,58 @@ function TripManageModal({
 
   const sortedTrips = useMemo(() => trips, [trips])
 
-  if (!open) return null
-
   return (
-    <div className="modal-backdrop" role="presentation" onClick={onClose}>
-      <div className="modal-card" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
-        <h3>管理旅程</h3>
-        <p className="hint-text">支持拖拽排序、编辑旅程信息，也可使用上移/下移按钮。</p>
+    <section className="card-section sidebar-manage-panel" role="region" aria-label="管理旅程面板">
+      <div className="sidebar-manage-header">
+        <div>
+          <h2>1) 管理旅程</h2>
+          <p className="hint-text">支持拖拽排序、编辑旅程信息，也可使用上移/下移按钮。</p>
+        </div>
+        <button type="button" onClick={onClose}>
+          返回左栏
+        </button>
+      </div>
 
-        {!!errorText && <p className="error-text">{errorText}</p>}
+      {!!errorText && <p className="error-text">{errorText}</p>}
 
-        <ul className="trip-manage-list">
-          {sortedTrips.map((trip, index) => {
-            const segmentCount = segmentCountOfTrip(trip)
-            const isEditing = editingTripId === trip.id
+      <ul className="trip-manage-list">
+        {sortedTrips.map((trip, index) => {
+          const segmentCount = segmentCountOfTrip(trip)
+          const isEditing = editingTripId === trip.id
 
-            return (
-              <li
-                key={trip.id}
-                className="trip-manage-item"
-                draggable
-                onDragStart={() => setDraggingTripId(trip.id)}
-                onDragOver={(event) => event.preventDefault()}
-                onDrop={() => {
-                  if (!draggingTripId || draggingTripId === trip.id) return
-                  const orderedIds = [...sortedTrips.map((item) => item.id)]
-                  const from = orderedIds.findIndex((id) => id === draggingTripId)
-                  const to = orderedIds.findIndex((id) => id === trip.id)
-                  if (from < 0 || to < 0) return
-                  const [moved] = orderedIds.splice(from, 1)
-                  orderedIds.splice(to, 0, moved)
-                  onReorderTrips(orderedIds)
-                  setDraggingTripId(null)
-                }}
-                onDragEnd={() => setDraggingTripId(null)}
-              >
-                <div className="trip-main-meta">
-                  {!isEditing && (
-                    <>
-                      <strong>{trip.title}</strong>
-                      <small>
-                        {trip.startDate} ~ {trip.endDate} · {segmentCount} 条路段 · 旅程总里程：
-                        {formatDistance(getTripDistanceMeters(trip))}
-                      </small>
-                    </>
-                  )}
+          return (
+            <li
+              key={trip.id}
+              className="trip-manage-item"
+              draggable
+              onDragStart={() => setDraggingTripId(trip.id)}
+              onDragOver={(event) => event.preventDefault()}
+              onDrop={() => {
+                if (!draggingTripId || draggingTripId === trip.id) return
+                const orderedIds = [...sortedTrips.map((item) => item.id)]
+                const from = orderedIds.findIndex((id) => id === draggingTripId)
+                const to = orderedIds.findIndex((id) => id === trip.id)
+                if (from < 0 || to < 0) return
+                const [moved] = orderedIds.splice(from, 1)
+                orderedIds.splice(to, 0, moved)
+                onReorderTrips(orderedIds)
+                setDraggingTripId(null)
+              }}
+              onDragEnd={() => setDraggingTripId(null)}
+            >
+              <div className="trip-main-meta">
+                {!isEditing && (
+                  <>
+                    <strong>{trip.title}</strong>
+                    <small>
+                      {trip.startDate} ~ {trip.endDate} · {segmentCount} 条路段 · 旅程总里程：
+                      {formatDistance(getTripDistanceMeters(trip))}
+                    </small>
+                  </>
+                )}
 
-                  {isEditing && draft && (
-                    <div className="trip-inline-edit">
+                {isEditing && draft && (
+                  <div className="trip-inline-edit">
                       <input
                         value={draft.title}
                         onChange={(event) => setDraft((prev) => (prev ? { ...prev, title: event.target.value } : prev))}
@@ -142,12 +144,12 @@ function TripManageModal({
                           取消
                         </button>
                       </div>
-                    </div>
-                  )}
-                </div>
+                  </div>
+                )}
+              </div>
 
-                {!isEditing && (
-                  <div className="trip-item-actions">
+              {!isEditing && (
+                <div className="trip-item-actions">
                     <button
                       type="button"
                       onClick={() => {
@@ -171,20 +173,19 @@ function TripManageModal({
                     <button type="button" className="danger-btn" onClick={() => onDeleteTrip(trip.id)}>
                       删除
                     </button>
-                  </div>
-                )}
-              </li>
-            )
-          })}
-        </ul>
+                </div>
+              )}
+            </li>
+          )
+        })}
+      </ul>
 
-        <div className="modal-footer">
-          <button type="button" onClick={onClose}>
-            完成
-          </button>
-        </div>
+      <div className="modal-footer">
+        <button type="button" onClick={onClose}>
+          完成
+        </button>
       </div>
-    </div>
+    </section>
   )
 }
 
