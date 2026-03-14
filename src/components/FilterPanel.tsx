@@ -24,8 +24,8 @@ function FilterPanel({ trips, filters, onChange, onOpenTripManager, dayDistanceT
   }, [dayOptions, filters.dayId])
 
   return (
-    <section className="card-section">
-      <h2>2) 筛选区</h2>
+    <section className="card-section filter-panel-card">
+      <h2 className="filter-panel-title">2) 筛选区</h2>
 
       <div className="filter-row">
         <label>
@@ -81,11 +81,14 @@ function FilterPanel({ trips, filters, onChange, onOpenTripManager, dayDistanceT
         </label>
       </div>
 
-      {!filters.tripId && <p className="hint-text">已选择“全部旅程”，可查看所有路段。</p>}
-      {filters.tripId && !filters.dayId && <p className="hint-text">当前为该旅程下“全部日期”。</p>}
-      {filters.dayId && !filters.segmentId && <p className="hint-text">当前为该日期下“全部路段”。</p>}
-      {filters.tripId && <p>旅程总里程：{tripDistanceText}</p>}
-      {filters.dayId && <p>当日总里程：{dayDistanceText}</p>}
+      {!filters.tripId && <p className="hint-text filter-hint">已选择“全部旅程”，可查看所有路段。</p>}
+      {filters.tripId && !filters.dayId && <p className="hint-text filter-hint">当前为该旅程下“全部日期”。</p>}
+      {filters.dayId && !filters.segmentId && <p className="hint-text filter-hint">当前为该日期下“全部路段”。</p>}
+
+      <div className="filter-stats-row">
+        {filters.tripId && <p>旅程总里程：{tripDistanceText}</p>}
+        {filters.dayId && <p>当日总里程：{dayDistanceText}</p>}
+      </div>
     </section>
   )
 }

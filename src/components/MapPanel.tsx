@@ -19,7 +19,6 @@ interface ResolvedRoutePatch {
 interface MapPanelProps {
   filteredSegments: RouteSegment[]
   editingSegmentId: string | null
-  onStartEdit: (segmentId: string) => void
   onCancelEdit: () => void
   onSaveEdit: (payload: {
     segmentId: string
@@ -59,10 +58,6 @@ interface ViewportControllerProps {
 
 interface WaypointFocusControllerProps {
   waypoint: Waypoint | null
-}
-
-interface MapResizeControllerProps {
-  expanded: boolean
 }
 
 const defaultCenter: [number, number] = [35.8617, 104.1954]
@@ -125,13 +120,13 @@ function ViewportController({ points }: ViewportControllerProps) {
   return null
 }
 
-function MapResizeController({ expanded }: MapResizeControllerProps) {
+function MapResizeController() {
   const map = useMap()
 
   useEffect(() => {
     const timer = window.setTimeout(() => map.invalidateSize(), 80)
     return () => window.clearTimeout(timer)
-  }, [map, expanded])
+  }, [map])
 
   useEffect(() => {
     const handleResize = () => map.invalidateSize()
@@ -171,7 +166,6 @@ async function resolvePointByName(placeName: string): Promise<{ lat: number; lon
 function MapPanel({
   filteredSegments,
   editingSegmentId,
-  onStartEdit,
   onCancelEdit,
   onSaveEdit,
   selectedWaypoint,
@@ -182,7 +176,6 @@ function MapPanel({
   const [tracks, setTracks] = useState<SegmentTrack[]>([])
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('请选择旅程/日期/路段以查看轨迹')
-  const [mapExpanded, setMapExpanded] = useState(false)
   const [editMode, setEditMode] = useState<EditMode>('start')
   const [draftLine, setDraftLine] = useState<CoordPoint[] | null>(null)
   const [originalLine, setOriginalLine] = useState<CoordPoint[] | null>(null)
@@ -430,46 +423,30 @@ function MapPanel({
 
   return (
     <section className="card-section map-section-with-toolbar">
-      <h2>4) 地图轨迹</h2>
-      {(loading || message) && <p className="hint-text">{loading ? '正在加载轨迹点位...' : message}</p>}
+      {loading && <p className="hint-text">正在加载轨迹点位...</p>}
+      {!loading && message.startsWith('未解析') && <p className="hint-text">{message}</p>}
 
-      <div className="map-toolbar">
-        <button type="button" onClick={() => setMapExpanded((prev) => !prev)}>
-          {mapExpanded ? '收起地图' : '展开地图'}
-        </button>
-
-        {!editingSegmentId ? (
-          <button
-            type="button"
-            onClick={() => {
-              if (filteredSegments[0]) onStartEdit(filteredSegments[0].id)
-            }}
-            disabled={!filteredSegments.length}
-          >
-            编辑轨迹
+      {editingSegmentId && (
+        <div className="map-toolbar">
+          <button type="button" onClick={handleCancel}>
+            取消
           </button>
-        ) : (
-          <>
-            <button type="button" onClick={handleCancel}>
-              取消
+          <button type="button" onClick={handleSave}>
+            保存
+          </button>
+          <div className="edit-mode-tabs">
+            <button type="button" className={editMode === 'start' ? 'active' : ''} onClick={() => setEditMode('start')}>
+              改起点
             </button>
-            <button type="button" onClick={handleSave}>
-              保存
+            <button type="button" className={editMode === 'end' ? 'active' : ''} onClick={() => setEditMode('end')}>
+              改终点
             </button>
-            <div className="edit-mode-tabs">
-              <button type="button" className={editMode === 'start' ? 'active' : ''} onClick={() => setEditMode('start')}>
-                改起点
-              </button>
-              <button type="button" className={editMode === 'end' ? 'active' : ''} onClick={() => setEditMode('end')}>
-                改终点
-              </button>
-              <button type="button" className={editMode === 'track' ? 'active' : ''} onClick={() => setEditMode('track')}>
-                改轨迹
-              </button>
-            </div>
-          </>
-        )}
-      </div>
+            <button type="button" className={editMode === 'track' ? 'active' : ''} onClick={() => setEditMode('track')}>
+              改轨迹
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="map-panel-wrapper">
         <MapContainer
@@ -478,9 +455,9 @@ function MapPanel({
           zoomSnap={0.25}
           zoomDelta={0.25}
           wheelPxPerZoomLevel={160}
-          className={`map-container ${mapExpanded ? 'map-container-expanded' : ''}`}
+          className="map-container"
         >
-          <MapResizeController expanded={mapExpanded} />
+          <MapResizeController />
           <TileLayer
             attribution='&copy; <a href="https://www.amap.com/">Amap</a>'
             url="https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}"
