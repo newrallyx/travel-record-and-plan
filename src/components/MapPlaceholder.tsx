@@ -38,7 +38,7 @@ interface MapPlaceholderProps {
   onOpenTripManager: () => void
   onDeleteTrip: (tripId: string) => void
 
-  filteredSegments: RouteSegment[]
+  filteredSegments: Array<RouteSegment & { dayDate?: string }>
   summary: RouteSummary
   filterContext: FilterContext
   editingSegmentId: string | null
@@ -257,7 +257,7 @@ function MapPlaceholder({
               </div>
             </div>
             <div className="route-item-meta">
-              <span>日期：{segment.date || '未设置'}</span>
+              <span>日期：{segment.date || segment.dayDate || '未设置'}</span>
               <span>里程：{formatDistance(getTrackDistanceMeters(segment))}</span>
             </div>
           </li>

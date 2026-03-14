@@ -9,7 +9,7 @@ import { useRouteCacheHydration } from './hooks/useRouteCacheHydration'
 import { useSegmentEditing, type SegmentMetaDraft } from './hooks/useSegmentEditing'
 import { useTripManager, type EndpointDraft } from './hooks/useTripManager'
 import { useTripReviewState } from './hooks/useTripReviewState'
-import type { CoordPoint, FilterState, RouteSummary, TripCategory, Waypoint } from './types/trip'
+import type { CoordPoint, FilterState, RouteSegment, RouteSummary, TripCategory, Waypoint } from './types/trip'
 import { formatDistance, getDayDistanceMeters, getTrackDistanceMeters, getTripDistanceMeters } from './utils/distance'
 import './styles/app.css'
 
@@ -41,6 +41,29 @@ function App() {
   const placeholderMode: 'trip-list' | 'segment-list' = isAllTripsSelected ? 'trip-list' : 'segment-list'
   const mapRenderSegments = useFilteredSegments(workspaceTrips, filters)
   const listViewSegments = placeholderMode === 'segment-list' ? mapRenderSegments : []
+
+  const segmentDayDateMap = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const trip of workspaceTrips) {
+      for (const day of trip.days) {
+        for (const segment of day.routeSegments) {
+          if (!map.has(segment.id) && day.date) {
+            map.set(segment.id, day.date)
+          }
+        }
+      }
+    }
+    return map
+  }, [workspaceTrips])
+
+  const detailSegments = useMemo(
+    () =>
+      listViewSegments.map((segment) => ({
+        ...segment,
+        dayDate: (segment as RouteSegment & { dayDate?: string }).dayDate ?? segmentDayDateMap.get(segment.id),
+      })),
+    [listViewSegments, segmentDayDateMap],
+  )
 
   const activeSegmentId = useMemo(() => {
     if (editingSegmentId && listViewSegments.some((segment) => segment.id === editingSegmentId)) {
@@ -342,7 +365,7 @@ function App() {
             onViewTrip={(tripId) => setFilters({ tripId, dayId: '', segmentId: '' })}
             onOpenTripManager={() => setTripManagerOpen(true)}
             onDeleteTrip={tripManager.deleteTrip}
-            filteredSegments={listViewSegments}
+            filteredSegments={detailSegments}
             summary={summary}
             filterContext={filterContext}
             editingSegmentId={editingSegmentId}
