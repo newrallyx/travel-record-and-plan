@@ -14,6 +14,15 @@ export const segmentScoreFieldConfigs: Array<{
   { field: 'difficultyScore', label: '难度评分', mode: 'difficulty' },
 ]
 
+export const scenicColorStops: Array<{ score: number; color: string }> = [
+  { score: 1, color: '#3f4f67' },
+  { score: 3, color: '#295fbf' },
+  { score: 5, color: '#0088d1' },
+  { score: 7, color: '#00b8b0' },
+  { score: 9, color: '#26c95f' },
+  { score: 10, color: '#00e676' },
+]
+
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value))
 }
@@ -42,6 +51,10 @@ function normalizeScoreRatio(score: number | null | undefined): number {
   const normalized = normalizeScore(score)
   if (normalized === null) return 0
   return (normalized - SCORE_MIN) / (SCORE_MAX - SCORE_MIN)
+}
+
+function scoreToRatio(score: number): number {
+  return (clampScore(score) - SCORE_MIN) / (SCORE_MAX - SCORE_MIN)
 }
 
 function hexToRgb(hex: string): { r: number; g: number; b: number } {
@@ -91,13 +104,10 @@ export function scoreToColor(score: number | null | undefined, mode: Exclude<Rou
   const ratio = normalizeScoreRatio(score)
 
   if (mode === 'scenic') {
-    return colorFromAnchors(ratio, [
-      { at: 0, color: '#334e68' },
-      { at: 0.24, color: '#1d5f8c' },
-      { at: 0.5, color: '#0077b6' },
-      { at: 0.74, color: '#00a8b5' },
-      { at: 1, color: '#10b981' },
-    ])
+    return colorFromAnchors(
+      ratio,
+      scenicColorStops.map((stop) => ({ at: scoreToRatio(stop.score), color: stop.color })),
+    )
   }
 
   return colorFromAnchors(ratio, [
