@@ -1,5 +1,6 @@
 import { mockTripReview } from './mockData'
 import type { CoordPoint, RouteSegment, TripReview, Waypoint } from '../types/trip'
+import { normalizeScore, normalizeSegmentNote } from '../utils/segmentScores'
 
 // 本地存储服务：统一处理 TripReview 的读取与保存，避免组件直接操作 localStorage。
 const STORAGE_KEY = 'trip-review-data-v1'
@@ -82,6 +83,9 @@ function normalizeRouteSegment(segment: RouteSegment): RouteSegment {
     waypoints: normalizedWaypoints ?? normalizeLegacyViaPointsText(segment.viaPointsText),
     // 新主流程不再依赖 viaPointsText。
     viaPointsText: undefined,
+    scenicScore: normalizeScore(segment.scenicScore),
+    difficultyScore: normalizeScore(segment.difficultyScore),
+    note: normalizeSegmentNote(segment.note),
   }
 }
 
@@ -116,6 +120,9 @@ function toPersistedRouteSegment(segment: RouteSegment): RouteSegment {
     startPlaceId: segment.startPlaceId,
     endPlaceId: segment.endPlaceId,
     order: segment.order,
+    scenicScore: normalizeScore(segment.scenicScore),
+    difficultyScore: normalizeScore(segment.difficultyScore),
+    note: normalizeSegmentNote(segment.note),
   }
 }
 
@@ -132,12 +139,13 @@ export function toPersistedTripReview(data: TripReview): TripReview {
 }
 
 function resetToMockData(): TripReview {
+  const normalizedMockData = normalizeTripReview(toPersistedTripReview(mockTripReview))
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(toPersistedTripReview(mockTripReview)))
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(toPersistedTripReview(normalizedMockData)))
   } catch (error) {
     console.error('[tripStorage] Failed to reset trip review cache with mock data.', error)
   }
-  return mockTripReview
+  return normalizedMockData
 }
 
 export function loadTripReview(): TripReview {
