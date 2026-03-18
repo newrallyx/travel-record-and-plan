@@ -3,6 +3,7 @@
 export type RoutePreference = 'HIGHWAY_FIRST' | 'AVOID_TOLL'
 export type RouteType = 'DRIVING' | 'CYCLING'
 export type TripCategory = 'review' | 'plan'
+export type RouteColorMode = 'default' | 'scenic' | 'difficulty'
 
 export interface CoordPoint {
   lat: number
@@ -41,6 +42,9 @@ export interface RouteSegment {
   distanceMeters?: number
   routeBuildKey?: string
   waypoints?: Waypoint[]
+  scenicScore?: number | null
+  difficultyScore?: number | null
+  note?: string
 }
 
 export interface TripDay {
