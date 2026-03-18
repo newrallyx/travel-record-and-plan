@@ -10,8 +10,9 @@ import { useRouteCacheHydration } from './hooks/useRouteCacheHydration'
 import { useSegmentEditing, type SegmentMetaDraft } from './hooks/useSegmentEditing'
 import { useTripManager, type EndpointDraft } from './hooks/useTripManager'
 import { useTripReviewState } from './hooks/useTripReviewState'
-import type { CoordPoint, FilterState, RouteSegment, RouteSummary, TripCategory, Waypoint } from './types/trip'
+import type { CoordPoint, FilterState, RouteColorMode, RouteSegment, RouteSummary, TripCategory, Waypoint } from './types/trip'
 import { formatDistance, getDayDistanceMeters, getTrackDistanceMeters, getTripDistanceMeters } from './utils/distance'
+import { normalizeSegmentNote, normalizeScore } from './utils/segmentScores'
 import './styles/app.css'
 
 function App() {
@@ -19,6 +20,7 @@ function App() {
   const [activeWorkspace, setActiveWorkspace] = useState<TripCategory>('review')
   const [filters, setFilters] = useState<FilterState>({ tripId: '', dayId: '', segmentId: '' })
   const [tripManagerOpen, setTripManagerOpen] = useState(false)
+  const [routeColorMode, setRouteColorMode] = useState<RouteColorMode>('default')
 
   const [editingSegmentId, setEditingSegmentId] = useState<string | null>(null)
   const [selectedWaypointId, setSelectedWaypointId] = useState<string | null>(null)
@@ -391,6 +393,7 @@ function App() {
           <div className="map-canvas-wrap">
             <MapPanel
               filteredSegments={mapRenderSegments}
+              routeColorMode={routeColorMode}
               isOverviewMode={!filters.tripId}
               editingSegmentId={editingSegmentId}
               onCancelEdit={() => setEditingSegmentId(null)}
@@ -419,6 +422,8 @@ function App() {
             trips={workspaceTrips}
             filters={filters}
             onChange={setFilters}
+            routeColorMode={routeColorMode}
+            onChangeRouteColorMode={setRouteColorMode}
             onOpenTripManager={() => setTripManagerOpen(true)}
             isReadonlyMode={isReadonlyDemoMode}
             tripDistanceText={tripDistanceText}
@@ -537,6 +542,20 @@ function App() {
                     : { endCoord: { lat: payload.lat, lon: payload.lng } }),
                 }
               })
+            }}
+            onUpdateSegmentScore={(field, value) => {
+              if (!activeSegmentId) return
+              tripManager.updateSegment(activeSegmentId, (segment) => ({
+                ...segment,
+                [field]: normalizeScore(value),
+              }))
+            }}
+            onUpdateSegmentNote={(value) => {
+              if (!activeSegmentId) return
+              tripManager.updateSegment(activeSegmentId, (segment) => ({
+                ...segment,
+                note: normalizeSegmentNote(value),
+              }))
             }}
           />
         </aside>

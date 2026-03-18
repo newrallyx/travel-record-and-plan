@@ -1,6 +1,7 @@
 import PlaceAutocomplete from './PlaceAutocomplete'
 import type { RoutePreference, RouteSegment, RouteSummary, RouteType, Waypoint } from '../types/trip'
 import { formatDistance, getTrackDistanceMeters } from '../utils/distance'
+import SegmentScoreFields from './SegmentScoreFields'
 
 function formatCoordText(coord?: { lat: number; lon: number }): string {
   if (!coord) return '未解析坐标'
@@ -87,6 +88,8 @@ interface MapPlaceholderProps {
   onSaveEndpoints: () => void
   onUpdateEndpointText: (field: 'startPoint' | 'endPoint', text: string) => void
   onSelectEndpointPlace: (field: 'startPoint' | 'endPoint', payload: { label: string; lat: number; lng: number; amapId?: string }) => void
+  onUpdateSegmentScore: (field: 'scenicScore' | 'difficultyScore', value: number | null) => void
+  onUpdateSegmentNote: (value: string) => void
 }
 
 function MapPlaceholder({
@@ -135,6 +138,8 @@ function MapPlaceholder({
   onSaveEndpoints,
   onUpdateEndpointText,
   onSelectEndpointPlace,
+  onUpdateSegmentScore,
+  onUpdateSegmentNote,
 }: MapPlaceholderProps) {
   // all-trips 时占位区显示“旅程列表模式”；底部真实地图仍由 mapRenderSegments 绘制总览。
   if (placeholderMode === 'trip-list') {
@@ -449,6 +454,25 @@ function MapPlaceholder({
             ))}
           </ul>
           {!waypoints.length && <p className="hint-text">当前路段无途经点。</p>}
+        </div>
+
+        <SegmentScoreFields
+          title="轨迹评分"
+          values={{ scenicScore: activeSegment.scenicScore, difficultyScore: activeSegment.difficultyScore }}
+          onChange={onUpdateSegmentScore}
+          disabled={isReadonlyMode}
+          hintText="支持 1.0 ~ 10.0，系统会自动限制范围并规范为 1 位小数。"
+        />
+
+        <div className="segment-note-section">
+          <p>轨迹备注</p>
+          <textarea
+            value={activeSegment.note ?? ''}
+            onChange={(event) => onUpdateSegmentNote(event.target.value)}
+            placeholder="记录这段轨迹的观感、注意事项、补给信息等。"
+            rows={4}
+            disabled={isReadonlyMode}
+          />
         </div>
 
         <p>总里程：{summary.totalDistanceText}</p>
