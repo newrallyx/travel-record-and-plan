@@ -12,6 +12,7 @@ import type {
   TripReview,
   Waypoint,
 } from '../types/trip'
+import { normalizeSegmentNote, normalizeScore } from '../utils/segmentScores'
 
 interface SegmentRef {
   tripIndex: number
@@ -259,6 +260,9 @@ export function useTripManager({
     endCoord?: CoordPoint
     startPlaceId?: string
     endPlaceId?: string
+    scenicScore?: number | null
+    difficultyScore?: number | null
+    note?: string
   }) => {
     if (blockReadonlyWrite('addSegment')) return
     setTripReview((prev) => ({
@@ -280,6 +284,9 @@ export function useTripManager({
           startPlaceId: payload.startPlaceId,
           endPlaceId: payload.endPlaceId,
           order: matchedDay?.routeSegments.length ?? 0,
+          scenicScore: normalizeScore(payload.scenicScore),
+          difficultyScore: normalizeScore(payload.difficultyScore),
+          note: normalizeSegmentNote(payload.note),
         }
 
         if (!matchedDay) {

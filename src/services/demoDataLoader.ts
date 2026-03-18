@@ -1,5 +1,6 @@
 import { buildSegmentRouteKey } from '../utils/routeBuildKey'
 import type { CoordPoint, RouteSegment, TripReview, Waypoint } from '../types/trip'
+import { normalizeScore, normalizeSegmentNote } from '../utils/segmentScores'
 
 const DEMO_DATA_PATH = '/demo-data.json'
 
@@ -47,6 +48,9 @@ function normalizeSegment(segment: RouteSegment): RouteSegment {
     points,
     waypoints,
     viaPointsText: undefined,
+    scenicScore: normalizeScore(segment.scenicScore),
+    difficultyScore: normalizeScore(segment.difficultyScore),
+    note: normalizeSegmentNote(segment.note),
   }
 
   return {
