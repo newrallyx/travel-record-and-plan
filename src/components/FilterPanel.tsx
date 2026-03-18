@@ -1,10 +1,12 @@
 import { useMemo } from 'react'
-import type { FilterState, Trip } from '../types/trip'
+import type { FilterState, RouteColorMode, Trip } from '../types/trip'
 
 interface FilterPanelProps {
   trips: Trip[]
   filters: FilterState
   onChange: (next: FilterState) => void
+  routeColorMode: RouteColorMode
+  onChangeRouteColorMode: (mode: RouteColorMode) => void
   onOpenTripManager: () => void
   isReadonlyMode: boolean
   dayDistanceText: string
@@ -12,7 +14,17 @@ interface FilterPanelProps {
 }
 
 // 筛选区：按“旅程 / 日期 / 路段”逐级筛选，并处理筛选联动重置。
-function FilterPanel({ trips, filters, onChange, onOpenTripManager, isReadonlyMode, dayDistanceText, tripDistanceText }: FilterPanelProps) {
+function FilterPanel({
+  trips,
+  filters,
+  onChange,
+  routeColorMode,
+  onChangeRouteColorMode,
+  onOpenTripManager,
+  isReadonlyMode,
+  dayDistanceText,
+  tripDistanceText,
+}: FilterPanelProps) {
   const selectedTrip = trips.find((trip) => trip.id === filters.tripId)
 
   const dayOptions = useMemo(() => {
@@ -89,6 +101,40 @@ function FilterPanel({ trips, filters, onChange, onOpenTripManager, isReadonlyMo
       <div className="filter-stats-row">
         {filters.tripId && <p>旅程总里程：{tripDistanceText}</p>}
         {filters.dayId && <p>当日总里程：{dayDistanceText}</p>}
+      </div>
+
+      <div className="route-color-mode-section">
+        <p className="route-color-mode-title">地图轨迹着色</p>
+        <div className="route-color-mode-options" role="radiogroup" aria-label="地图轨迹评分可视化">
+          <label className={`route-color-mode-option ${routeColorMode === 'default' ? 'active' : ''}`}>
+            <input
+              type="radio"
+              name="route-color-mode"
+              checked={routeColorMode === 'default'}
+              onChange={() => onChangeRouteColorMode('default')}
+            />
+            默认颜色
+          </label>
+          <label className={`route-color-mode-option ${routeColorMode === 'scenic' ? 'active' : ''}`}>
+            <input
+              type="radio"
+              name="route-color-mode"
+              checked={routeColorMode === 'scenic'}
+              onChange={() => onChangeRouteColorMode('scenic')}
+            />
+            风景评分可视化
+          </label>
+          <label className={`route-color-mode-option ${routeColorMode === 'difficulty' ? 'active' : ''}`}>
+            <input
+              type="radio"
+              name="route-color-mode"
+              checked={routeColorMode === 'difficulty'}
+              onChange={() => onChangeRouteColorMode('difficulty')}
+            />
+            难度评分可视化
+          </label>
+        </div>
+        <p className="hint-text filter-hint">评分着色模式互斥，同一时间最多开启一种可视化。</p>
       </div>
     </section>
   )

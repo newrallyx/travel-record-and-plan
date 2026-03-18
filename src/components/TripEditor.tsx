@@ -3,6 +3,7 @@ import type { CoordPoint, RoutePreference, RouteType, Trip, Waypoint } from '../
 import { routePreferenceOptions } from '../utils/routePreference'
 import { eachDayInRange } from '../utils/date'
 import PlaceAutocomplete from './PlaceAutocomplete'
+import SegmentScoreFields from './SegmentScoreFields'
 
 interface TripEditorProps {
   trips: Trip[]
@@ -21,6 +22,9 @@ interface TripEditorProps {
     endCoord?: CoordPoint
     startPlaceId?: string
     endPlaceId?: string
+    scenicScore?: number | null
+    difficultyScore?: number | null
+    note?: string
   }) => void
 }
 
@@ -47,6 +51,9 @@ function TripEditor({ trips, onAddTrip, onAddSegment, isReadonlyMode }: TripEdit
   const [segmentWaypoints, setSegmentWaypoints] = useState<Waypoint[]>([])
   const [segmentPreference, setSegmentPreference] = useState<RoutePreference>('HIGHWAY_FIRST')
   const [segmentRouteType, setSegmentRouteType] = useState<RouteType>('DRIVING')
+  const [segmentScenicScore, setSegmentScenicScore] = useState<number | null>(null)
+  const [segmentDifficultyScore, setSegmentDifficultyScore] = useState<number | null>(null)
+  const [segmentNote, setSegmentNote] = useState('')
   const [segmentError, setSegmentError] = useState('')
 
   useEffect(() => {
@@ -115,6 +122,9 @@ function TripEditor({ trips, onAddTrip, onAddSegment, isReadonlyMode }: TripEdit
       endCoord: segmentEndCoord,
       startPlaceId: segmentStartPlaceId,
       endPlaceId: segmentEndPlaceId,
+      scenicScore: segmentScenicScore,
+      difficultyScore: segmentDifficultyScore,
+      note: segmentNote,
     })
 
     setSegmentName('')
@@ -127,6 +137,9 @@ function TripEditor({ trips, onAddTrip, onAddSegment, isReadonlyMode }: TripEdit
     setSegmentWaypoints([])
     setSegmentPreference('HIGHWAY_FIRST')
     setSegmentRouteType('DRIVING')
+    setSegmentScenicScore(null)
+    setSegmentDifficultyScore(null)
+    setSegmentNote('')
   }
 
   return (
@@ -297,6 +310,30 @@ function TripEditor({ trips, onAddTrip, onAddSegment, isReadonlyMode }: TripEdit
             </option>
           ))}
         </select>
+
+        <SegmentScoreFields
+          title="新增路段评分（可选）"
+          values={{ scenicScore: segmentScenicScore, difficultyScore: segmentDifficultyScore }}
+          onChange={(field, value) => {
+            if (field === 'scenicScore') {
+              setSegmentScenicScore(value)
+              return
+            }
+            setSegmentDifficultyScore(value)
+          }}
+          disabled={isReadonlyMode}
+        />
+
+        <label className="segment-note-section">
+          <span>新增路段备注（可选）</span>
+          <textarea
+            value={segmentNote}
+            onChange={(event) => setSegmentNote(event.target.value)}
+            rows={3}
+            placeholder="记录这段路的观感、提醒或复盘备注。"
+            disabled={isReadonlyMode}
+          />
+        </label>
 
         <button type="submit" disabled={isReadonlyMode || !segmentTripId || !segmentDayDate || !segmentName.trim()}>
           添加路段
