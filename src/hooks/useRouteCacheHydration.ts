@@ -6,10 +6,13 @@ import type { CoordPoint, TripReview } from '../types/trip'
 interface UseRouteCacheHydrationParams {
   trips: TripReview['trips']
   setTripReview: Dispatch<SetStateAction<TripReview>>
+  enabled?: boolean
 }
 
-export function useRouteCacheHydration({ trips, setTripReview }: UseRouteCacheHydrationParams) {
+export function useRouteCacheHydration({ trips, setTripReview, enabled = true }: UseRouteCacheHydrationParams) {
   useEffect(() => {
+    if (!enabled) return
+
     let cancelled = false
 
     async function hydrateSegmentRouteCache() {
@@ -71,5 +74,5 @@ export function useRouteCacheHydration({ trips, setTripReview }: UseRouteCacheHy
     return () => {
       cancelled = true
     }
-  }, [trips, setTripReview])
+  }, [enabled, trips, setTripReview])
 }

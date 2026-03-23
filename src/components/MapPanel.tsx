@@ -4,10 +4,16 @@ import L, { type DivIcon, type LatLngExpression } from 'leaflet'
 import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png'
 import markerIcon from 'leaflet/dist/images/marker-icon.png'
 import markerShadow from 'leaflet/dist/images/marker-shadow.png'
-import type { CoordPoint, RouteSegment, Waypoint } from '../types/trip'
+import type { CoordPoint, RouteColorMode, RouteSegment, Waypoint } from '../types/trip'
 import { planCyclingRoute, planDrivingRoute, searchAmapInputTips } from '../services/amap'
 import { saveSegmentRouteCache } from '../services/routeCacheDb'
 import { buildSegmentRouteKey } from '../utils/routeBuildKey'
+import {
+  getScoreGradient,
+  getSegmentDisplayColor,
+  getSegmentScore,
+  UNRATED_SEGMENT_COLOR,
+} from '../utils/segmentScores'
 
 interface ResolvedRoutePatch {
   segmentId: string
@@ -18,6 +24,8 @@ interface ResolvedRoutePatch {
 
 interface MapPanelProps {
   filteredSegments: RouteSegment[]
+  routeColorMode: RouteColorMode
+  isOverviewMode: boolean
   editingSegmentId: string | null
   onCancelEdit: () => void
   onSaveEdit: (payload: {
@@ -29,6 +37,7 @@ interface MapPanelProps {
   selectedWaypoint: Waypoint | null
   onRouteResolved: (patches: ResolvedRoutePatch[]) => void
   allowAutoBuild: boolean
+  isReadonlyMode: boolean
   onEndpointDraftChange: (payload: {
     segmentId: string
     startCoord?: CoordPoint
@@ -63,6 +72,7 @@ interface WaypointFocusControllerProps {
 const defaultCenter: [number, number] = [35.8617, 104.1954]
 const CONTROL_POINT_STEP = 25
 const CONTROL_POINT_MAX = 16
+const OVERVIEW_MAX_POINTS_PER_SEGMENT = 220
 
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: markerIcon2x,
@@ -173,6 +183,17 @@ function fallbackLineFromPoints(points: Array<{ lat: number; lon: number }>): Co
   return points.map((point) => ({ lat: point.lat, lon: point.lon }))
 }
 
+function downsampleLine(points: CoordPoint[], targetSize: number): CoordPoint[] {
+  if (points.length <= targetSize || targetSize < 3) return points
+  const step = (points.length - 1) / (targetSize - 1)
+  const sampled: CoordPoint[] = []
+  for (let i = 0; i < targetSize; i += 1) {
+    const index = i === targetSize - 1 ? points.length - 1 : Math.round(i * step)
+    sampled.push(points[index])
+  }
+  return sampled
+}
+
 async function resolvePointByName(placeName: string): Promise<{ lat: number; lon: number } | null> {
   const { tips } = await searchAmapInputTips({ keywords: placeName, citylimit: false })
   const first = tips[0]
@@ -182,12 +203,15 @@ async function resolvePointByName(placeName: string): Promise<{ lat: number; lon
 
 function MapPanel({
   filteredSegments,
+  routeColorMode,
+  isOverviewMode,
   editingSegmentId,
   onCancelEdit,
   onSaveEdit,
   selectedWaypoint,
   onRouteResolved,
   allowAutoBuild,
+  isReadonlyMode,
   onEndpointDraftChange,
 }: MapPanelProps) {
   const [tracks, setTracks] = useState<SegmentTrack[]>([])
@@ -226,7 +250,7 @@ function MapPanel({
         return
       }
 
-      const shouldPlanMissing = allowAutoBuild
+      const shouldPlanMissing = allowAutoBuild && !isReadonlyMode
       setLoading(shouldPlanMissing)
       setMessage(shouldPlanMissing ? '正在按需加载路线...' : '当前为全局视图，仅展示已缓存轨迹。')
 
@@ -356,7 +380,7 @@ function MapPanel({
     return () => {
       active = false
     }
-  }, [routeBuildKey, segmentDescriptors, allowAutoBuild, onRouteResolved])
+  }, [routeBuildKey, segmentDescriptors, allowAutoBuild, isReadonlyMode, onRouteResolved])
 
   const editingTrack = useMemo(
     () => (editingSegmentId ? tracks.find((track) => track.segmentId === editingSegmentId) ?? null : null),
@@ -402,6 +426,15 @@ function MapPanel({
     })
   }, [tracks, editingTrack, draftLine])
 
+  const renderedTracks = useMemo(
+    () =>
+      displayedTracks.map((track) => ({
+        ...track,
+        line: isOverviewMode ? downsampleLine(track.line, OVERVIEW_MAX_POINTS_PER_SEGMENT) : track.line,
+      })),
+    [displayedTracks, isOverviewMode],
+  )
+
   const controlPointIndices = useMemo(() => {
     if (!draftLine || draftLine.length <= 2 || editMode !== 'track') return []
 
@@ -415,8 +448,10 @@ function MapPanel({
     return indices
   }, [draftLine, editMode])
 
-  const allLatLng = useMemo(() => displayedTracks.flatMap((track) => toLatLng(track.line)), [displayedTracks])
-  const mapResizeKey = `${displayedTracks.length}-${editingSegmentId ?? ''}-${loading ? 'loading' : 'idle'}`
+  const allLatLng = useMemo(() => renderedTracks.flatMap((track) => toLatLng(track.line)), [renderedTracks])
+  const mapResizeKey = `${renderedTracks.length}-${editingSegmentId ?? ''}-${loading ? 'loading' : 'idle'}`
+  const segmentMap = useMemo(() => new Map(filteredSegments.map((segment) => [segment.id, segment])), [filteredSegments])
+  const activeLegendMode = routeColorMode === 'default' ? null : routeColorMode
 
   const handleCancel = () => {
     if (originalLine) setDraftLine(originalLine.map((point) => ({ ...point })))
@@ -444,7 +479,7 @@ function MapPanel({
       {loading && <p className="hint-text">正在加载轨迹点位...</p>}
       {!loading && message.startsWith('未解析') && <p className="hint-text">{message}</p>}
 
-      {editingSegmentId && (
+      {editingSegmentId && !isReadonlyMode && (
         <div className="map-toolbar">
           <button type="button" onClick={handleCancel}>
             取消
@@ -482,13 +517,31 @@ function MapPanel({
             subdomains={[1, 2, 3, 4]}
           />
 
-          {displayedTracks.map((track) =>
-            track.line.length >= 2 ? (
-              <Polyline key={track.segmentId} positions={toLatLng(track.line)} color="#2563eb" weight={4} />
-            ) : null,
+          {renderedTracks.map((track) =>
+            track.line.length >= 2
+              ? (() => {
+                  const sourceSegment = segmentMap.get(track.segmentId)
+                  const lineColor = sourceSegment
+                    ? getSegmentDisplayColor(sourceSegment, routeColorMode, '#2563eb')
+                    : '#2563eb'
+                  const modeScore =
+                    routeColorMode === 'default' || !sourceSegment
+                      ? 'default'
+                      : getSegmentScore(sourceSegment, routeColorMode) ?? 'unrated'
+                  const lineWeight = routeColorMode === 'default' ? 4 : 6
+
+                  return (
+                    <Polyline
+                      key={`${track.segmentId}-${routeColorMode}-${modeScore}`}
+                      positions={toLatLng(track.line)}
+                      pathOptions={{ color: lineColor, weight: lineWeight, opacity: 0.96 }}
+                    />
+                  )
+                })()
+              : null,
           )}
 
-          {displayedTracks.flatMap((track) =>
+          {renderedTracks.flatMap((track) =>
             track.points.map((point, index) => {
               const draggable =
                 editingSegmentId === track.segmentId &&
@@ -577,6 +630,19 @@ function MapPanel({
           <WaypointFocusController waypoint={selectedWaypoint} />
           <ViewportController points={allLatLng} />
         </MapContainer>
+        {activeLegendMode && (
+          <div className="map-score-legend">
+            <div className="map-score-legend-title">{activeLegendMode === 'scenic' ? '风景评分着色' : '难度评分着色'}</div>
+            <div className="map-score-legend-bar" style={{ backgroundImage: getScoreGradient(activeLegendMode) }} />
+            <div className="map-score-legend-scale">
+              <span>1</span>
+              <span>10</span>
+            </div>
+            <div className="map-score-legend-note">
+              未评分轨迹显示为 <span className="map-score-legend-chip" style={{ backgroundColor: UNRATED_SEGMENT_COLOR }} /> 灰色
+            </div>
+          </div>
+        )}
       </div>
     </section>
   )

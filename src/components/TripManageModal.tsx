@@ -4,6 +4,7 @@ import { formatDistance, getTripDistanceMeters } from '../utils/distance'
 
 interface TripManageModalProps {
   trips: Trip[]
+  isReadonlyMode: boolean
   onClose: () => void
   onDeleteTrip: (tripId: string) => void
   onMoveTrip: (tripId: string, direction: 'up' | 'down') => void
@@ -23,6 +24,7 @@ function segmentCountOfTrip(trip: Trip): number {
 
 function TripManageModal({
   trips,
+  isReadonlyMode,
   onClose,
   onDeleteTrip,
   onMoveTrip,
@@ -42,6 +44,7 @@ function TripManageModal({
         <div>
           <h2>1) 管理旅程</h2>
           <p className="hint-text">支持拖拽排序、编辑旅程信息，也可使用上移/下移按钮。</p>
+          {isReadonlyMode && <p className="hint-text">演示版只读模式：管理操作已禁用，仅可浏览。</p>}
         </div>
         <button type="button" onClick={onClose}>
           返回左栏
@@ -60,9 +63,11 @@ function TripManageModal({
               key={trip.id}
               className="trip-manage-item"
               draggable
+              aria-disabled={isReadonlyMode}
               onDragStart={() => setDraggingTripId(trip.id)}
               onDragOver={(event) => event.preventDefault()}
               onDrop={() => {
+                if (isReadonlyMode) return
                 if (!draggingTripId || draggingTripId === trip.id) return
                 const orderedIds = [...sortedTrips.map((item) => item.id)]
                 const from = orderedIds.findIndex((id) => id === draggingTripId)
@@ -92,6 +97,7 @@ function TripManageModal({
                         value={draft.title}
                         onChange={(event) => setDraft((prev) => (prev ? { ...prev, title: event.target.value } : prev))}
                         placeholder="旅程名称"
+                        disabled={isReadonlyMode}
                       />
                       <input
                         type="date"
@@ -99,16 +105,19 @@ function TripManageModal({
                         onChange={(event) =>
                           setDraft((prev) => (prev ? { ...prev, startDate: event.target.value } : prev))
                         }
+                        disabled={isReadonlyMode}
                       />
                       <input
                         type="date"
                         value={draft.endDate}
                         onChange={(event) => setDraft((prev) => (prev ? { ...prev, endDate: event.target.value } : prev))}
+                        disabled={isReadonlyMode}
                       />
                       <div className="trip-item-actions">
                         <button
                           type="button"
                           onClick={() => {
+                            if (isReadonlyMode) return
                             if (!draft.title.trim()) {
                               setErrorText('旅程名称不能为空。')
                               return
@@ -153,6 +162,7 @@ function TripManageModal({
                     <button
                       type="button"
                       onClick={() => {
+                        if (isReadonlyMode) return
                         setEditingTripId(trip.id)
                         setDraft({ title: trip.title, startDate: trip.startDate, endDate: trip.endDate })
                         setErrorText('')
@@ -160,17 +170,17 @@ function TripManageModal({
                     >
                       编辑
                     </button>
-                    <button type="button" onClick={() => onMoveTrip(trip.id, 'up')} disabled={index === 0}>
+                    <button type="button" onClick={() => onMoveTrip(trip.id, 'up')} disabled={isReadonlyMode || index === 0}>
                       上移
                     </button>
                     <button
                       type="button"
                       onClick={() => onMoveTrip(trip.id, 'down')}
-                      disabled={index === sortedTrips.length - 1}
+                      disabled={isReadonlyMode || index === sortedTrips.length - 1}
                     >
                       下移
                     </button>
-                    <button type="button" className="danger-btn" onClick={() => onDeleteTrip(trip.id)}>
+                    <button type="button" className="danger-btn" onClick={() => onDeleteTrip(trip.id)} disabled={isReadonlyMode}>
                       删除
                     </button>
                 </div>

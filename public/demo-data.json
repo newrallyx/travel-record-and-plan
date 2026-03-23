@@ -1,0 +1,38 @@
+{
+  "trips": [
+    {
+      "id": "demo-trip-1",
+      "title": "示例旅程（请替换为完整真实导出）",
+      "category": "review",
+      "order": 0,
+      "startDate": "2025-09-28",
+      "endDate": "2025-09-28",
+      "days": [
+        {
+          "id": "demo-day-1",
+          "date": "2025-09-28",
+          "routeSegments": [
+            {
+              "id": "demo-seg-1",
+              "name": "成都 → 雅安",
+              "date": "2025-09-28",
+              "startPoint": "成都",
+              "endPoint": "雅安",
+              "startCoord": { "lat": 30.572815, "lon": 104.066801 },
+              "endCoord": { "lat": 29.980537, "lon": 103.013261 },
+              "routeType": "DRIVING",
+              "preference": "HIGHWAY_FIRST",
+              "distanceMeters": 136000,
+              "points": [
+                { "lat": 30.572815, "lon": 104.066801 },
+                { "lat": 30.300021, "lon": 103.867244 },
+                { "lat": 30.093915, "lon": 103.490955 },
+                { "lat": 29.980537, "lon": 103.013261 }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
