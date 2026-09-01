@@ -2,7 +2,7 @@ import { useCallback } from 'react'
 import { alertDialog, confirmDialog } from '../../components/ConfirmDialog'
 import { deleteSegmentRouteCache, getSegmentRouteCache, saveSegmentRouteCache } from '../../services/routeCacheDb'
 import type { FilterState, Trip, TripCategory, TripReview } from '../../types/trip'
-import { normalizeTripOrders, sortTripsByOrder } from '../../utils/tripOrder'
+import { normalizeTripOrders, sortTripsByOrder, sortTripsByStartDate } from '../../utils/tripOrder'
 import { moveTripToReview } from '../../utils/tripLifecycle'
 import type {
   BlockReadonlyWrite,
@@ -55,19 +55,30 @@ export function useTripActions({
   const addTrip = useCallback((payload: { title: string; startDate: string; endDate: string }) => {
     if (blockReadonlyWrite('addTrip')) return
     setTripReview((prev) => {
-      const normalizedTrips = normalizeTripOrders(prev.trips)
+      const newTrip: Trip = {
+        id: createId('trip'),
+        title: payload.title,
+        startDate: payload.startDate,
+        endDate: payload.endDate,
+        category: activeWorkspace,
+        order: 0,
+        days: [],
+      }
+
+      const scopedTrips = sortTripsByStartDate([
+        ...prev.trips.filter((trip) => trip.category === activeWorkspace),
+        newTrip,
+      ])
+      const orderById = new Map(scopedTrips.map((trip, order) => [trip.id, order]))
+
       return {
         trips: normalizeTripOrders([
-          ...normalizedTrips,
-          {
-            id: createId('trip'),
-            title: payload.title,
-            startDate: payload.startDate,
-            endDate: payload.endDate,
-            category: activeWorkspace,
-            order: normalizedTrips.filter((trip) => trip.category === activeWorkspace).length,
-            days: [],
-          },
+          ...prev.trips.map((trip) => {
+            if (trip.category !== activeWorkspace) return trip
+            const order = orderById.get(trip.id)
+            return order === undefined ? trip : { ...trip, order }
+          }),
+          { ...newTrip, order: orderById.get(newTrip.id) ?? 0 },
         ]),
       }
     })
