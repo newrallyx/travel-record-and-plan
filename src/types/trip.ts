@@ -3,7 +3,7 @@
 export type RoutePreference = 'SPEED_FIRST' | 'HIGHWAY_FIRST' | 'AVOID_TOLL'
 export type RouteType = 'DRIVING' | 'CYCLING'
 export type TripCategory = 'review' | 'plan'
-export type RouteColorMode = 'default' | 'scenic' | 'difficulty'
+export type RouteColorMode = 'default' | 'scenic' | 'difficulty' | 'roadType'
 
 // 复盘标签白名单：稳定英文代码存储，界面显示中文。
 // 不允许自由扩展，新增标签必须同时加入类型与 utils/reviewTags.ts。

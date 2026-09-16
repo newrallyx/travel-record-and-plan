@@ -10,6 +10,7 @@ import {
   formatSegmentActualToll,
 } from './reviewFacts.ts'
 import { normalizeScore } from './segmentScores.ts'
+import { getDifficultyScoreBand, getScenicScoreBand } from './roadStatistics.ts'
 
 // 游记生成器：纯规则模板，只使用旅程中已存在的数据。
 // 输出 Markdown 文本；缺失的数据会被省略，绝不出现 undefined/NaN。
@@ -52,16 +53,11 @@ function formatIsoDateChinese(value: string): string | null {
 }
 
 function describeScenicScore(score: number): string {
-  if (score >= 8) return '风景绝佳'
-  if (score >= 6) return '风景不错'
-  if (score >= 4) return '风景尚可'
-  return '景色一般'
+  return getScenicScoreBand(score)?.label ?? ''
 }
 
 function describeDifficultyScore(score: number): string {
-  if (score >= 8) return '难度较高'
-  if (score >= 6) return '有一定挑战'
-  return '难度不大'
+  return getDifficultyScoreBand(score)?.label ?? ''
 }
 
 function collectSegmentTags(segment: RouteSegment): ReviewTag[] {

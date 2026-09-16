@@ -18,23 +18,6 @@ import { getReviewTagLabel, REVIEW_TAG_GROUPS } from '../../utils/reviewTags'
 import { formatDistance } from '../../utils/distance'
 import RoadbookMap from './RoadbookMap'
 
-const COVER_GRADIENTS = [
-  'linear-gradient(135deg, #1e3a5f 0%, #3b82c4 100%)',
-  'linear-gradient(135deg, #3f2d5c 0%, #8b5fc4 100%)',
-  'linear-gradient(135deg, #144a43 0%, #2f8f7a 100%)',
-  'linear-gradient(135deg, #5c3a1e 0%, #c48b3b 100%)',
-  'linear-gradient(135deg, #4a1e2e 0%, #b0476a 100%)',
-  'linear-gradient(135deg, #2d3a4a 0%, #5f7c9c 100%)',
-]
-
-function pickCoverGradient(title: string): string {
-  let hash = 0
-  for (let index = 0; index < title.length; index += 1) {
-    hash = (hash * 31 + title.charCodeAt(index)) | 0
-  }
-  return COVER_GRADIENTS[Math.abs(hash) % COVER_GRADIENTS.length]
-}
-
 /** 封面缩略图：IntersectionObserver 按需加载，不加载原图。 */
 function RoadbookCoverImage({ photo }: { photo: LinkedPhotoRecord }) {
   const wrapRef = useRef<HTMLDivElement | null>(null)
@@ -209,8 +192,7 @@ function RoadbookLibraryView({ trips, items, onOpenTrip }: RoadbookLibraryViewPr
               <li key={item.id} className="roadbook-card">
                 <button
                   type="button"
-                  className="roadbook-cover"
-                  style={coverPhoto ? undefined : { background: pickCoverGradient(item.title) }}
+                  className={`roadbook-cover ${coverPhoto ? 'has-photo' : 'is-placeholder'}`}
                   onClick={() => onOpenTrip(item.id)}
                   aria-label={`打开路书：${item.title}`}
                 >

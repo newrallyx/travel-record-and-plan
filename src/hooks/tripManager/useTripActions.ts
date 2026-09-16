@@ -1,6 +1,10 @@
 import { useCallback } from 'react'
 import { alertDialog, confirmDialog } from '../../components/ConfirmDialog'
-import { deleteSegmentRouteCache, getSegmentRouteCache, saveSegmentRouteCache } from '../../services/routeCacheDb'
+import {
+  deleteSegmentRouteCache,
+  getSegmentRouteCache,
+  savePlannedSegmentRouteCache,
+} from '../../services/routeCacheDb'
 import type { FilterState, Trip, TripCategory, TripReview } from '../../types/trip'
 import { normalizeTripOrders, sortTripsByOrder, sortTripsByStartDate } from '../../utils/tripOrder'
 import { moveTripToReview } from '../../utils/tripLifecycle'
@@ -216,10 +220,18 @@ export function useTripActions({
         const routeCache = await getSegmentRouteCache(sourceSegmentId)
         if (!routeCache) return
 
-        await saveSegmentRouteCache({
+        await savePlannedSegmentRouteCache({
           segmentId: copiedSegmentId,
           routeBuildKey: routeCache.routeBuildKey,
           points: routeCache.points,
+          distanceMeters: routeCache.distanceMeters,
+          estimatedDurationSeconds: routeCache.estimatedDurationSeconds,
+          durationUpdatedAt: routeCache.durationUpdatedAt,
+          estimatedTollYuan: routeCache.estimatedTollYuan,
+          tollDistanceMeters: routeCache.tollDistanceMeters,
+          tollUpdatedAt: routeCache.tollUpdatedAt,
+          roadParts: routeCache.roadParts,
+          roadAnalysis: routeCache.roadAnalysis,
         })
       }),
     )

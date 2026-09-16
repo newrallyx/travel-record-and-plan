@@ -13,12 +13,14 @@ export interface DialogOptions {
     placeholder?: string
     defaultValue?: string
   }
+  signal?: AbortSignal
 }
 
 type DialogResult = boolean | string | null
 
 interface PendingDialog extends DialogOptions {
   resolve: (value: DialogResult) => void
+  abortHandler?: () => void
 }
 
 let pending: PendingDialog | null = null
@@ -30,8 +32,21 @@ function emitChange() {
 
 function showDialog(options: DialogOptions): Promise<DialogResult> {
   return new Promise<DialogResult>((resolve) => {
-    pending = { ...options, resolve }
+    if (options.signal?.aborted) {
+      resolve(options.input ? null : false)
+      return
+    }
+    const nextPending: PendingDialog = { ...options, resolve }
+    const abortHandler = () => {
+      if (pending?.resolve !== resolve) return
+      pending = null
+      emitChange()
+      resolve(options.input ? null : false)
+    }
+    nextPending.abortHandler = abortHandler
+    pending = nextPending
     emitChange()
+    options.signal?.addEventListener('abort', abortHandler, { once: true })
   })
 }
 
@@ -93,6 +108,7 @@ export function ConfirmDialogHost() {
     const current = pending
     pending = null
     emitChange()
+    current?.signal?.removeEventListener('abort', current.abortHandler as EventListener)
     current?.resolve(value)
   }
 

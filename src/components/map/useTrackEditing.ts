@@ -65,6 +65,9 @@ export function useTrackEditing({
         ...track,
         line: draftLine,
         points: mutablePoints,
+        // 手动编辑一开始，旧道路片段的几何便不再与草稿一致；编辑期间回退为整条草稿线。
+        roadParts: undefined,
+        roadAnalysis: undefined,
       }
     })
   }, [tracks, editingTrack, draftLine])

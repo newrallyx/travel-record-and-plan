@@ -2,6 +2,7 @@ import { useCallback } from 'react'
 import type { RouteSegment } from '../../types/trip'
 import MapPanel from '../MapPanel'
 import type { ResolvedRoutePatch, TrackSavePayload } from '../map/types'
+import { DEFAULT_ROAD_TYPE_VISIBILITY } from '../map/roadTypeVisualization'
 
 interface RoadbookMapProps {
   segments: RouteSegment[]
@@ -18,6 +19,7 @@ function RoadbookMap({ segments }: RoadbookMapProps) {
     <MapPanel
       filteredSegments={segments}
       routeColorMode="default"
+      roadTypeVisibility={DEFAULT_ROAD_TYPE_VISIBILITY}
       isOverviewMode
       editingSegmentId={null}
       onCancelEdit={ignoreEvent}

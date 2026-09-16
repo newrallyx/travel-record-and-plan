@@ -150,6 +150,26 @@ test('summarizeRoadbookStats returns null distance when nothing is known', () =>
   assert.equal(stats.distanceMeters, null)
 })
 
+test('summarizeRoadbookStats counts review trips only and keeps repeated mileage', () => {
+  const repeatedRoute = { distanceMeters: 120000, startPoint: '成都', endPoint: '康定' }
+  const stats = summarizeRoadbookStats([
+    createTrip('review-1', {
+      days: [createDay('d-1', '2026-08-01', [createSegment('s-1', repeatedRoute)])],
+    }),
+    createTrip('review-2', {
+      days: [createDay('d-2', '2026-08-02', [createSegment('s-2', repeatedRoute)])],
+    }),
+    createTrip('plan-1', {
+      category: 'plan',
+      days: [createDay('d-3', '2026-08-03', [createSegment('s-3', { distanceMeters: 500000 })])],
+    }),
+  ])
+
+  assert.equal(stats.tripCount, 2)
+  assert.equal(stats.segmentCount, 2)
+  assert.equal(stats.distanceMeters, 240000)
+})
+
 test('toPersistedTripReview keeps and trims valid cover photo ids', () => {
   const review = {
     trips: [createTrip('t-1', { coverPhotoId: '  photo-1  ' })],

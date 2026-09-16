@@ -195,6 +195,7 @@ function MapPlaceholder({
 }: MapPlaceholderProps) {
   const [detailDraft, setDetailDraft] = useState<DetailEditDraft | null>(null)
   const detailEditMode = Boolean(activeSegment && detailDraft?.segmentId === activeSegment.id)
+  const isSingleSegmentView = Boolean(activeSegment && filteredSegments.length === 1)
 
   const detailDraftDirty = useMemo(() => {
     if (!activeSegment || !detailDraft || detailDraft.segmentId !== activeSegment.id) return false
@@ -344,24 +345,63 @@ function MapPlaceholder({
   }
 
   return (
-    <section className="card-section">
-      <h2>轨迹详情</h2>
-
-      <p>
-        当前筛选：旅程【{filterContext.tripName}】 / 日期【{filterContext.dayDate}】 / 路段【
-        {filterContext.segmentName}
-        】
-      </p>
-
-      <p>当前筛选路段数量：{filteredSegments.length}</p>
+    <section className={`card-section detail-panel-card${isSingleSegmentView ? ' detail-panel-card-single' : ''}`}>
+      {isSingleSegmentView && activeSegment ? (
+        <div id="detail-seg-meta" className="detail-single-heading">
+          <div className="detail-single-title-row">
+            <div className="detail-single-title">
+              <span className="detail-single-eyebrow">路段详情</span>
+              <h2>{activeSegment.name}</h2>
+              <p>{activeSegmentDate || '未设置日期'} · {filterContext.tripName}</p>
+            </div>
+            <div className="detail-single-actions" aria-label="路段操作">
+              {!detailEditMode ? (
+                <button type="button" onClick={startDetailEdit} disabled={isReadonlyMode}>编辑详情</button>
+              ) : (
+                <>
+                  <button type="button" className="btn-primary" onClick={saveDetailEdit} disabled={isReadonlyMode}>保存全部</button>
+                  <button type="button" className="btn-secondary" onClick={cancelDetailEdit}>取消</button>
+                </>
+              )}
+              <button type="button" onClick={() => onMoveSegmentInTrip(activeSegment.id, 'up')} disabled={isReadonlyMode || !canMoveSegmentUp}>上移</button>
+              <button type="button" onClick={() => onMoveSegmentInTrip(activeSegment.id, 'down')} disabled={isReadonlyMode || !canMoveSegmentDown}>下移</button>
+              <button type="button" className="danger-btn" onClick={() => onDeleteSegment({ segmentId: activeSegment.id, index: 0, name: activeSegment.name })} disabled={isReadonlyMode}>
+                <AppIcon name="trash" className="icon-inline" />
+                删除
+              </button>
+            </div>
+          </div>
+          <p className="detail-single-endpoints">
+            <span>{activeSegment.startPoint || '起点未设置'}</span>
+            <span aria-hidden="true">→</span>
+            <span>{activeSegment.endPoint || '终点未设置'}</span>
+          </p>
+          <div className="detail-metric-strip" aria-label="路段核心指标">
+            <div><small>日期</small><strong>{activeSegmentDate || '未设置'}</strong></div>
+            <div><small>预计里程</small><strong>{formatDistance(getTrackDistanceMeters(activeSegment))}</strong></div>
+            <div><small>预计用时</small><strong>{formatSegmentEstimatedDuration(activeSegment)}</strong></div>
+            <div><small>预估过路费</small><strong>{formatSegmentEstimatedToll(activeSegment)}</strong></div>
+          </div>
+        </div>
+      ) : (
+        <>
+          <h2>轨迹详情</h2>
+          <p>
+            当前筛选：旅程【{filterContext.tripName}】 / 日期【{filterContext.dayDate}】 / 路段【
+            {filterContext.segmentName}
+            】
+          </p>
+          <p>当前筛选路段数量：{filteredSegments.length}</p>
+        </>
+      )}
 
       {!activeSegment && filterContext.segmentName === '全部路段' && (
         <p className="hint-text">当前为全部路段，请先选择一条具体轨迹以查看和编辑详情。</p>
       )}
 
-      {!!activeSegment && (
-        <div id="detail-seg-meta" className={`segment-meta-editor ${detailEditMode ? 'editing' : ''}`}>
-          <div className="segment-detail-edit-header">
+      {!!activeSegment && (!isSingleSegmentView || detailEditMode) && (
+        <div className={`segment-meta-editor ${detailEditMode ? 'editing' : ''}`}>
+          {!isSingleSegmentView && <div className="segment-detail-edit-header">
             <div>
               <p>轨迹信息</p>
               <span>{detailEditMode ? (detailDraftDirty ? '编辑中 · 有未保存更改' : '编辑中') : '只读浏览'}</span>
@@ -380,7 +420,7 @@ function MapPlaceholder({
                 </button>
               </div>
             )}
-          </div>
+          </div>}
           {detailEditMode ? (
             <div className="segment-meta-row">
               <label>
@@ -401,13 +441,13 @@ function MapPlaceholder({
                 />
               </label>
             </div>
-          ) : (
+          ) : !isSingleSegmentView ? (
             <div className="segment-detail-readonly-grid">
               <div><small>轨迹名称</small><strong>{activeSegment.name}</strong></div>
               <div><small>对应日期</small><strong>{activeSegmentDate || '未设置'}</strong></div>
             </div>
-          )}
-          <div className="trip-item-actions">
+          ) : null}
+          {!isSingleSegmentView && <div className="trip-item-actions">
             <button type="button" onClick={() => onMoveSegmentInTrip(activeSegment.id, 'up')} disabled={isReadonlyMode || !canMoveSegmentUp}>
               上移
             </button>
@@ -418,10 +458,11 @@ function MapPlaceholder({
             >
               下移
             </button>
-          </div>
+          </div>}
         </div>
       )}
 
+      {!isSingleSegmentView && <>
       <p>路段名称列表：</p>
       <ul className="route-list">
         {filteredSegments.map((segment, index) => (
@@ -449,6 +490,7 @@ function MapPlaceholder({
           </li>
         ))}
       </ul>
+      </>}
 
       {filteredSegments.length === 0 && (
         <EmptyState

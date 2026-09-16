@@ -74,11 +74,13 @@ export interface RoadbookStats {
 }
 
 export function summarizeRoadbookStats(trips: Trip[]): RoadbookStats {
+  const reviewTrips = trips.filter((trip) => trip.category === 'review')
   let segmentCount = 0
   const photoIds = new Set<string>()
   let distanceMeters: number | null = null
 
-  for (const trip of trips) {
+  // 统计只包含已完成的 review 旅程；相同道路或路线被多次行驶时按每次记录重复累计。
+  for (const trip of reviewTrips) {
     const tripDistance = getTripDistanceMeters(trip)
     if (tripDistance !== null) distanceMeters = (distanceMeters ?? 0) + tripDistance
     for (const day of trip.days) {
@@ -89,5 +91,5 @@ export function summarizeRoadbookStats(trips: Trip[]): RoadbookStats {
     }
   }
 
-  return { tripCount: trips.length, segmentCount, photoCount: photoIds.size, distanceMeters }
+  return { tripCount: reviewTrips.length, segmentCount, photoCount: photoIds.size, distanceMeters }
 }

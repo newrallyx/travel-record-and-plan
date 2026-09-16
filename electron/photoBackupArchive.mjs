@@ -14,12 +14,14 @@ export const DESKTOP_BACKUP_VERSION = 1
 const MAX_BACKUP_ZIP_SIZE = 1024 * 1024 * 1024
 const MAX_BACKUP_UNCOMPRESSED_SIZE = 2 * 1024 * 1024 * 1024
 const MAX_JSON_FILE_SIZE = 100 * 1024 * 1024
-const MAX_LEGACY_JSON_FILE_SIZE = 512 * 1024 * 1024
+// Route geometry can exceed the metadata limit; use the same limit for ZIP and JSON trips.
+const MAX_TRIP_JSON_FILE_SIZE = 512 * 1024 * 1024
+const SUPPORTED_TRIP_BACKUP_VERSIONS = [1, 2, 3]
 
 async function readFileLimited(filePath, maxSize = MAX_JSON_FILE_SIZE) {
   const fileStats = await stat(filePath)
   if (!fileStats.isFile() || fileStats.size > maxSize) {
-    throw new Error(`Backup entry exceeds the ${Math.round(maxSize / 1024 / 1024)} MB safety limit.`)
+    throw new Error(`备份文件 ${path.basename(filePath)} 不是普通文件或超过 ${Math.round(maxSize / 1024 / 1024)} MB 大小限制。`)
   }
   return readFile(filePath)
 }
@@ -36,7 +38,7 @@ function validateTripBackupJson(json) {
   const parsed = parseJson(Buffer.from(json), 'Trip backup')
   if (
     parsed?.schema !== 'roadtrip-retrospective-backup'
-    || (parsed?.version !== 1 && parsed?.version !== 2)
+    || !SUPPORTED_TRIP_BACKUP_VERSIONS.includes(parsed?.version)
     || !Array.isArray(parsed?.data?.tripReview?.trips)
     || !Array.isArray(parsed?.data?.segmentRoutes)
   ) {
@@ -50,7 +52,7 @@ function validateImportableTripBackupJson(json) {
   if (Array.isArray(parsed?.trips)) return parsed
   if (
     parsed?.schema === 'roadtrip-retrospective-backup'
-    && (parsed?.version === 1 || parsed?.version === 2)
+    && SUPPORTED_TRIP_BACKUP_VERSIONS.includes(parsed?.version)
     && Array.isArray(parsed?.data?.tripReview?.trips)
   ) {
     return parsed
@@ -62,7 +64,7 @@ export async function readTripBackupJsonFile(jsonPath) {
   if (typeof jsonPath !== 'string' || !path.isAbsolute(jsonPath)) {
     throw new Error('Backup JSON path must be absolute.')
   }
-  const tripBackupJson = (await readFileLimited(jsonPath, MAX_LEGACY_JSON_FILE_SIZE)).toString('utf8')
+  const tripBackupJson = (await readFileLimited(jsonPath, MAX_TRIP_JSON_FILE_SIZE)).toString('utf8')
   validateImportableTripBackupJson(tripBackupJson)
   return tripBackupJson
 }
@@ -92,6 +94,9 @@ export async function writeDesktopBackupZip({
 }) {
   if (typeof zipPath !== 'string' || !path.isAbsolute(zipPath)) throw new Error('Backup ZIP path must be absolute.')
   if (typeof tripBackupJson !== 'string' || !tripBackupJson.trim()) throw new Error('Trip backup JSON is required.')
+  if (Buffer.byteLength(tripBackupJson, 'utf8') > MAX_TRIP_JSON_FILE_SIZE) {
+    throw new Error('旅程备份数据超过 512 MB 大小限制，无法生成可导入的 ZIP 备份。')
+  }
   validateTripBackupJson(tripBackupJson)
 
   const referencedIds = new Set(referencedPhotoIds)
@@ -173,6 +178,9 @@ export async function prepareDesktopBackupZip({
           || entryName === 'photos/thumbnails/'
           || /^photos\/thumbnails\/[A-Za-z0-9_-]{1,128}\.webp$/.test(entryName)
         if (!allowed) throw new Error(`Backup ZIP contains an unsupported entry: ${entryName}`)
+        if (entryName === 'trip-backup.json' && entry.uncompressedSize > MAX_TRIP_JSON_FILE_SIZE) {
+          throw new Error('备份文件 trip-backup.json 超过 512 MB 大小限制。')
+        }
         totalUncompressedSize += entry.uncompressedSize
         if (totalUncompressedSize > MAX_BACKUP_UNCOMPRESSED_SIZE) {
           throw new Error('Backup ZIP exceeds the 2 GB uncompressed safety limit.')
@@ -190,7 +198,7 @@ export async function prepareDesktopBackupZip({
       throw new Error('Backup ZIP must not contain local original photos.')
     }
 
-    const tripBackupJson = (await readFileLimited(path.join(extractionPath, 'trip-backup.json'))).toString('utf8')
+    const tripBackupJson = (await readFileLimited(path.join(extractionPath, 'trip-backup.json'), MAX_TRIP_JSON_FILE_SIZE)).toString('utf8')
     validateTripBackupJson(tripBackupJson)
     const rawPhotoMetadata = parseJson(
       await readFileLimited(path.join(extractionPath, 'photos', 'metadata.json')),

@@ -4,6 +4,7 @@ import express from 'express'
 import { createInputTipsProxyHandler } from './amapInputTipsProxy.js'
 import { createDirectionProxyHandler } from './amapDirectionProxy.js'
 import { createCyclingDirectionProxyHandler } from './amapCyclingDirectionProxy.js'
+import { createRegeoProxyHandler } from './amapRegeoProxy.js'
 
 export const LOCAL_API_CLIENT_HEADER = 'x-roadtrip-client'
 export const LOCAL_API_CLIENT_VALUE = 'roadtrip-local-app'
@@ -112,10 +113,12 @@ export function createApp({
   const inputTipsHandler = createInputTipsProxyHandler({ getAmapKey: getAmapWebApiKey })
   const directionHandler = createDirectionProxyHandler({ getAmapWebApiKey })
   const cyclingDirectionHandler = createCyclingDirectionProxyHandler({ getAmapWebApiKey })
+  const regeoHandler = createRegeoProxyHandler({ getAmapWebApiKey })
 
   app.get('/api/amap/inputtips', inputTipsHandler)
   app.get('/api/amap/direction', directionHandler)
   app.get('/api/amap/cycling-direction', cyclingDirectionHandler)
+  app.get('/api/amap/regeo', regeoHandler)
 
   if (staticDir && fs.existsSync(staticDir)) {
     app.use(express.static(staticDir))
