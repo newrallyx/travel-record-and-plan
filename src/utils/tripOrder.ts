@@ -10,6 +10,18 @@ export function sortTripsByOrder(trips: Trip[]): Trip[] {
     .map(({ trip }) => trip)
 }
 
+export function sortTripsByStartDate(trips: Trip[]): Trip[] {
+  return trips
+    .map((trip, sourceIndex) => ({ trip, sourceIndex }))
+    .sort((a, b) => {
+      const startDateDifference = a.trip.startDate.localeCompare(b.trip.startDate)
+      if (startDateDifference !== 0) return startDateDifference
+      const endDateDifference = a.trip.endDate.localeCompare(b.trip.endDate)
+      return endDateDifference || a.sourceIndex - b.sourceIndex
+    })
+    .map(({ trip }) => trip)
+}
+
 export function normalizeTripOrders(trips: Trip[]): Trip[] {
   const orderById = new Map<string, number>()
   const categories: TripCategory[] = ['review', 'plan']

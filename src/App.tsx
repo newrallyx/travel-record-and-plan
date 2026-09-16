@@ -14,10 +14,12 @@ import TripEditor from './components/TripEditor'
 import TripManageModal from './components/TripManageModal'
 import RoadbookLibraryView from './components/roadbook/RoadbookLibraryView'
 import TripRoadbookView from './components/roadbook/TripRoadbookView'
+import StatisticsDashboard from './components/statistics/StatisticsDashboard'
 import { useAmapKeyConfig } from './hooks/useAmapKeyConfig'
 import { useAppEditingState } from './hooks/useAppEditingState'
 import { useMapInfo } from './hooks/useMapInfo'
 import { useResolvedRoutes } from './hooks/useResolvedRoutes'
+import { applyResolvedRoutePatches } from './hooks/resolvedRoutePatches'
 import { useRouteCacheHydration } from './hooks/useRouteCacheHydration'
 import { useSegmentEditing } from './hooks/useSegmentEditing'
 import { useTripBackup } from './hooks/useTripBackup'
@@ -40,7 +42,7 @@ interface PhotoPositionEditState {
 
 type CompactPanelTab = 'editor' | 'details' | 'photos'
 type DetailPanelTab = 'details' | 'photos'
-type ReviewMode = 'browse' | 'organize'
+type ReviewMode = 'browse' | 'organize' | 'statistics'
 
 function App() {
   const {
@@ -140,6 +142,8 @@ function App() {
     setTripManagerOpen,
     routeColorMode,
     setRouteColorMode,
+    roadTypeVisibility,
+    setRoadTypeVisibility,
     workspaceTrips,
     isAllTripsSelected,
     canUseScoreColoring,
@@ -322,6 +326,13 @@ function App() {
     setReviewMode('browse')
   }, [editing.resetEditingState, reviewMode])
 
+  // 数据统计为只读页面：保留当前地图、筛选以及所有编辑草稿，不触发重置。
+  const handleEnterReviewStatistics = useCallback(() => {
+    if (reviewMode === 'statistics') return
+    setRoadbookTripId(null)
+    setReviewMode('statistics')
+  }, [reviewMode])
+
   const {
     isExportingBackup,
     isImportingBackup,
@@ -446,7 +457,7 @@ function App() {
       <main className="app-shell">
         <header className="top-nav">
           <div className="top-nav-title-group">
-            <h1>自驾旅行记录与规划工具</h1>
+            <h1>旅行轨迹记录与规划工具</h1>
             <p>只读展示版正在加载全部旅程数据...</p>
             <p className="readonly-banner">演示版 / 只读模式：当前内容不可修改</p>
           </div>
@@ -460,7 +471,7 @@ function App() {
       <main className="app-shell">
         <header className="top-nav">
           <div className="top-nav-title-group">
-            <h1>自驾旅行记录与规划工具</h1>
+            <h1>旅行轨迹记录与规划工具</h1>
             <p>只读展示版加载失败：{loadError}</p>
             <p className="readonly-banner">请检查 public/demo-data.json 是否存在且 JSON 结构合法。</p>
           </div>
@@ -468,6 +479,44 @@ function App() {
       </main>
     )
   }
+
+  const reviewModeNavigation = (
+    <nav className="roadbook-submode-bar" role="tablist" aria-label="复盘视图模式">
+      <button
+        type="button"
+        role="tab"
+        aria-selected={reviewMode === 'browse'}
+        className={reviewMode === 'browse' ? 'active' : ''}
+        onClick={handleEnterReviewBrowse}
+      >
+        <AppIcon name="book" className="icon-inline" />
+        路书浏览
+      </button>
+      <button
+        type="button"
+        role="tab"
+        aria-selected={reviewMode === 'organize'}
+        className={reviewMode === 'organize' ? 'active' : ''}
+        onClick={handleEnterReviewOrganize}
+      >
+        <AppIcon name="edit" className="icon-inline" />
+        整理记录
+      </button>
+      <button
+        type="button"
+        role="tab"
+        aria-selected={reviewMode === 'statistics'}
+        className={reviewMode === 'statistics' ? 'active' : ''}
+        onClick={handleEnterReviewStatistics}
+      >
+        <AppIcon name="info" className="icon-inline" />
+        数据统计
+      </button>
+    </nav>
+  )
+
+  const showReviewFullPage = activeWorkspace === 'review'
+    && (reviewMode === 'browse' || reviewMode === 'statistics')
 
   return (
     <main className="app-shell">
@@ -491,7 +540,7 @@ function App() {
               />
               <circle cx="25" cy="13" r="2.6" fill="#fbbf24" stroke="#ffffff" strokeWidth="1" />
             </svg>
-            <h1>自驾旅行记录与规划工具</h1>
+            <h1>旅行轨迹记录与规划工具</h1>
           </div>
           <p>{filterContext.tripName} · {filterContext.dayDate} · {filterContext.segmentName}</p>
           {isReadonlyDemoMode ? (
@@ -642,45 +691,44 @@ function App() {
         </div>
       </header>
 
-      {activeWorkspace === 'review' && (
-        <nav className="roadbook-submode-bar" role="tablist" aria-label="复盘视图模式">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={reviewMode === 'browse'}
-            className={reviewMode === 'browse' ? 'active' : ''}
-            onClick={handleEnterReviewBrowse}
-          >
-            <AppIcon name="book" className="icon-inline" />
-            路书浏览
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={reviewMode === 'organize'}
-            className={reviewMode === 'organize' ? 'active' : ''}
-            onClick={handleEnterReviewOrganize}
-          >
-            <AppIcon name="edit" className="icon-inline" />
-            整理记录
-          </button>
-        </nav>
-      )}
+      {showReviewFullPage && reviewModeNavigation}
 
-      <div className={`workspace-layout${leftPanelCollapsed ? ' left-collapsed' : ''}${rightPanelCollapsed ? ' right-collapsed' : ''}`}>
-        {activeWorkspace === 'review' && reviewMode === 'browse' ? (
-          roadbookTripId && workspaceTrips.some((trip) => trip.id === roadbookTripId) ? (
+      {activeWorkspace === 'review' && reviewMode === 'browse' && (
+        <div className="review-full-page">
+          {roadbookTripId && workspaceTrips.some((trip) => trip.id === roadbookTripId) ? (
             <TripRoadbookView
               trip={workspaceTrips.find((trip) => trip.id === roadbookTripId) as Trip}
+              trips={tripReview.trips}
               onBack={() => setRoadbookTripId(null)}
               isReadonlyMode={isReadonlyDemoMode}
               onSaveTravelogue={(travelogue) => saveTripTravelogue(roadbookTripId as string, travelogue)}
             />
           ) : (
             <RoadbookLibraryView trips={workspaceTrips} items={tripBookItems} onOpenTrip={setRoadbookTripId} />
-          )
-        ) : (
-        <>
+          )}
+        </div>
+      )}
+
+      {activeWorkspace === 'review' && reviewMode === 'statistics' && (
+        <div className="review-full-page">
+          <StatisticsDashboard
+            trips={tripReview.trips}
+            currentTripId={filters.tripId || undefined}
+            currentSegmentId={filters.segmentId || undefined}
+            isReadonlyMode={isReadonlyDemoMode}
+            onRouteReplacement={(patch) => {
+              setTripReview((previous) => applyResolvedRoutePatches(previous, [patch]))
+            }}
+          />
+        </div>
+      )}
+
+      <div
+        className={`workspace-layout${activeWorkspace === 'review' ? ' has-review-navigation' : ''}${leftPanelCollapsed ? ' left-collapsed' : ''}${rightPanelCollapsed ? ' right-collapsed' : ''}`}
+        hidden={showReviewFullPage}
+        aria-hidden={showReviewFullPage || undefined}
+      >
+        {activeWorkspace === 'review' && reviewModeNavigation}
         <div className="compact-panel-tabs" role="tablist" aria-label="工作面板">
           <button
             type="button"
@@ -784,6 +832,9 @@ function App() {
             <MapPanel
               filteredSegments={mapRenderSegments}
               routeColorMode={routeColorMode}
+              roadTypeVisibility={roadTypeVisibility}
+              allTrips={tripReview.trips}
+              selectedTripId={filters.tripId}
               isOverviewMode={!filters.tripId}
               editingSegmentId={editingSegmentId}
               onCancelEdit={() => setEditingSegmentId(null)}
@@ -822,6 +873,8 @@ function App() {
             onChange={changeFiltersWithDetailGuard}
             routeColorMode={routeColorMode}
             onChangeRouteColorMode={setRouteColorMode}
+            roadTypeVisibility={roadTypeVisibility}
+            onChangeRoadTypeVisibility={setRoadTypeVisibility}
             canUseScoreColoring={canUseScoreColoring}
             onOpenTripManager={() => setTripManagerOpen(true)}
             onDuplicateTrip={tripManager.duplicateTrip}
@@ -1007,8 +1060,6 @@ onReorderDaySegments={tripManager.reorderDaySegments}
             ‹
           </button>
         </aside>
-        </>
-        )}
       </div>
 
       {appMode === 'readonly-demo' && <footer className="app-mode-footer">演示只读模式</footer>}

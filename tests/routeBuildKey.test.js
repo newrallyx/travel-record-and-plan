@@ -6,7 +6,10 @@ import {
   buildSegmentRouteKey,
   canDisplaySegmentRouteCache,
   canReuseRecordedRoute,
+  getRoadAnalysisFreshness,
+  hasCurrentRoadAnalysis,
 } from '../src/utils/routeBuildKey.ts'
+import { ROAD_CLASSIFIER_VERSION } from '../src/config/roadStatistics.ts'
 
 function createSegment(overrides = {}) {
   return {
@@ -23,6 +26,34 @@ function createSegment(overrides = {}) {
   }
 }
 
+function createRoadAnalysisCache(segment = createSegment(), overrides = {}) {
+  const routeBuildKey = buildSegmentRouteKey(segment)
+  return {
+    routeBuildKey,
+    roadParts: [{
+      roadClass: 'EXPRESSWAY',
+      roadName: 'G65 包茂高速',
+      routeRef: 'G65',
+      distanceMeters: 1200,
+      confidence: 'HIGH',
+      source: 'ROAD_NAME',
+    }],
+    roadAnalysis: {
+      schemaVersion: 1,
+      classifierVersion: ROAD_CLASSIFIER_VERSION,
+      analyzedAt: '2026-09-01T08:00:00.000Z',
+      routeBuildKey,
+      coverageMeters: 1200,
+      routeDistanceMeters: 1200,
+      coverageRatio: 1,
+      distanceErrorMeters: 0,
+      distanceToleranceMeters: 100,
+      status: 'complete',
+    },
+    ...overrides,
+  }
+}
+
 test('legacy route geometry remains displayable after the route build version changes', () => {
   const segment = createSegment()
   const legacyKey = buildLegacySegmentRouteKey(segment)
@@ -31,6 +62,54 @@ test('legacy route geometry remains displayable after the route build version ch
   assert.notEqual(currentKey, legacyKey)
   assert.equal(canDisplaySegmentRouteCache(segment, legacyKey), true)
   assert.equal(canDisplaySegmentRouteCache(segment, currentKey), true)
+  assert.equal(
+    getRoadAnalysisFreshness(segment, createRoadAnalysisCache(segment, {
+      routeBuildKey: legacyKey,
+      roadAnalysis: {
+        ...createRoadAnalysisCache(segment).roadAnalysis,
+        routeBuildKey: legacyKey,
+      },
+    })),
+    'stale',
+  )
+})
+
+test('road analysis becomes stale after every route-defining input change', () => {
+  const segment = createSegment()
+  const cache = createRoadAnalysisCache(segment)
+
+  assert.equal(hasCurrentRoadAnalysis(segment, cache), true)
+
+  const changedSegments = [
+    { ...segment, startPoint: '咸阳' },
+    { ...segment, endPoint: '天水' },
+    { ...segment, startCoord: { lat: 34.4, lon: 108.9398 } },
+    { ...segment, endCoord: { lat: 34.4, lon: 107.2379 } },
+    { ...segment, waypoints: [{ ...segment.waypoints[0], lat: 34.4 }] },
+    { ...segment, preference: 'AVOID_TOLL' },
+    { ...segment, routeType: 'CYCLING' },
+  ]
+
+  changedSegments.forEach((changedSegment) => {
+    assert.equal(getRoadAnalysisFreshness(changedSegment, cache), 'stale')
+    assert.equal(hasCurrentRoadAnalysis(changedSegment, cache), false)
+  })
+})
+
+test('missing or mismatched road analysis is never current', () => {
+  const segment = createSegment()
+  const cache = createRoadAnalysisCache(segment)
+
+  assert.equal(getRoadAnalysisFreshness(segment, { ...cache, roadAnalysis: undefined }), 'missing')
+  assert.equal(getRoadAnalysisFreshness(segment, { ...cache, roadParts: undefined }), 'missing')
+  assert.equal(getRoadAnalysisFreshness(segment, {
+    ...cache,
+    roadAnalysis: { ...cache.roadAnalysis, routeBuildKey: 'different-key' },
+  }), 'stale')
+  assert.equal(getRoadAnalysisFreshness(segment, {
+    ...cache,
+    roadAnalysis: { ...cache.roadAnalysis, classifierVersion: 'rules-v3' },
+  }), 'stale')
 })
 
 test('legacy cache is rejected when a route-defining input changes', () => {

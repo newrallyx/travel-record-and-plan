@@ -14,6 +14,10 @@ import { formatDurationSummary, summarizeEstimatedDurations } from '../utils/dur
 import { sortTripsByOrder } from '../utils/tripOrder'
 import { formatTollSummary, summarizeEstimatedTolls } from '../utils/tolls'
 import { useFilteredSegments } from './useFilteredSegments'
+import {
+  DEFAULT_ROAD_TYPE_VISIBILITY,
+  type RoadTypeVisibility,
+} from '../components/map/roadTypeVisualization'
 
 interface UseTripWorkspaceParams {
   trips: TripReview['trips']
@@ -53,6 +57,7 @@ export function useTripWorkspace({
   const [filters, setFilters] = useState<FilterState>({ tripId: '', dayId: '', segmentId: '' })
   const [tripManagerOpen, setTripManagerOpen] = useState(false)
   const [routeColorMode, setRouteColorMode] = useState<RouteColorMode>('default')
+  const [roadTypeVisibility, setRoadTypeVisibility] = useState<RoadTypeVisibility>(DEFAULT_ROAD_TYPE_VISIBILITY)
   const filtersRef = useRef(filters)
 
   useEffect(() => {
@@ -145,7 +150,7 @@ export function useTripWorkspace({
   }, [activeWorkspace, workspaceTrips, isReadonlyDemoMode, resetEditingState, setFilters])
 
   useEffect(() => {
-    if (canUseScoreColoring || routeColorMode === 'default') return
+    if (canUseScoreColoring || routeColorMode === 'default' || routeColorMode === 'roadType') return
     setRouteColorMode('default')
   }, [canUseScoreColoring, routeColorMode])
 
@@ -249,6 +254,8 @@ export function useTripWorkspace({
     setTripManagerOpen,
     routeColorMode,
     setRouteColorMode,
+    roadTypeVisibility,
+    setRoadTypeVisibility,
     workspaceTrips,
     isAllTripsSelected,
     canUseScoreColoring,

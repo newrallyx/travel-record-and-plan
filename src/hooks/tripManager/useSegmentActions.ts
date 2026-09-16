@@ -1,4 +1,5 @@
 import { useCallback } from 'react'
+import { confirmDialog } from '../../components/ConfirmDialog'
 import { deleteSegmentRouteCache } from '../../services/routeCacheDb'
 import type {
   CoordPoint,
@@ -253,9 +254,14 @@ export function useSegmentActions({
     }))
   }, [blockReadonlyWrite, setTripReview])
 
-  const deleteSegment = useCallback((payload: { segmentId?: string; index: number; name: string }) => {
+  const deleteSegment = useCallback(async (payload: { segmentId?: string; index: number; name: string }) => {
     if (blockReadonlyWrite('deleteSegment')) return
-    const confirmed = window.confirm(`确定删除“${payload.name}”这段路段吗？此操作不可恢复。`)
+    const confirmed = await confirmDialog({
+      title: '删除路段',
+      message: `确定删除“${payload.name}”这段路段吗？此操作不可恢复。`,
+      confirmText: '删除',
+      danger: true,
+    })
     if (!confirmed) return
 
     const fallbackSegment = listViewSegments[payload.index]

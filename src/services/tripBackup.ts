@@ -1,12 +1,16 @@
 import type { TripReview } from '../types/trip'
-import { getAllSegmentRouteCache, type RouteCacheRecord } from './routeCacheDb.ts'
+import {
+  getAllSegmentRouteCache,
+  normalizeRouteCacheRecords,
+  type RouteCacheRecord,
+} from './routeCacheDb.ts'
 import { toPersistedTripReview } from './tripStorage.ts'
 
 const BACKUP_SCHEMA = 'roadtrip-retrospective-backup'
-// 版本 2：支持路段复盘事实（标签、实际里程/时间/过路费）。
-// 导入同时兼容 v1（旧备份的旅程自动得到空的复盘字段）。
-const BACKUP_VERSION = 2
-const BACKUP_SUPPORTED_VERSIONS = [1, 2]
+// 版本 3：旅行数据之外，完整导出 IndexedDB 路线缓存中的道路片段和分析元数据。
+// 导入继续兼容原始 TripReview JSON、v1 和 v2。
+const BACKUP_VERSION = 3
+const BACKUP_SUPPORTED_VERSIONS = [1, 2, 3]
 
 interface TripBackupPayload {
   schema: typeof BACKUP_SCHEMA
@@ -65,22 +69,9 @@ function isTripReview(value: unknown): value is TripReview {
 }
 
 function normalizeImportedSegmentRoutes(value: unknown): RouteCacheRecord[] {
-  if (!Array.isArray(value)) return []
-
-  return value
-    .map((item) => {
-      if (!isRecord(item) || typeof item.segmentId !== 'string' || typeof item.routeBuildKey !== 'string') {
-        return null
-      }
-
-      return {
-        segmentId: item.segmentId,
-        routeBuildKey: item.routeBuildKey,
-        points: item.points,
-        updatedAt: typeof item.updatedAt === 'number' ? item.updatedAt : Date.now(),
-      } as RouteCacheRecord
-    })
-    .filter((item): item is RouteCacheRecord => Boolean(item))
+  // 缓存层对 roadParts 采用整组严格校验：任何非法坐标、负里程或无效道路类型
+  // 都会丢弃该记录的道路扩展字段，但不会让合法的旧几何轨迹无法显示。
+  return normalizeRouteCacheRecords(value, Date.now())
 }
 
 function extractEmbeddedSegmentRoutes(data: TripReview): RouteCacheRecord[] {

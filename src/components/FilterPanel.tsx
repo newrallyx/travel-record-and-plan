@@ -1,6 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { FilterState, RouteColorMode, Trip } from '../types/trip'
 import { sortTripDaysByDate } from '../utils/date'
+import {
+  ROAD_TYPE_MAP_CATEGORIES,
+  ROAD_TYPE_MAP_COLORS,
+  ROAD_TYPE_MAP_LABELS,
+  type RoadTypeVisibility,
+} from './map/roadTypeVisualization'
 
 interface FilterPanelProps {
   trips: Trip[]
@@ -8,6 +14,8 @@ interface FilterPanelProps {
   onChange: (next: FilterState) => void
   routeColorMode: RouteColorMode
   onChangeRouteColorMode: (mode: RouteColorMode) => void
+  roadTypeVisibility: RoadTypeVisibility
+  onChangeRoadTypeVisibility: (visibility: RoadTypeVisibility) => void
   canUseScoreColoring: boolean
   onOpenTripManager: () => void
   onDuplicateTrip: (tripId: string) => void
@@ -30,6 +38,8 @@ function FilterPanel({
   onChange,
   routeColorMode,
   onChangeRouteColorMode,
+  roadTypeVisibility,
+  onChangeRoadTypeVisibility,
   canUseScoreColoring,
   onOpenTripManager,
   onDuplicateTrip,
@@ -54,6 +64,9 @@ function FilterPanel({
 
   const selectedDay = dayOptions.find((day) => day.id === filters.dayId)
   const segmentOptions = selectedDay?.routeSegments ?? []
+  const areAllRoadTypesVisible = ROAD_TYPE_MAP_CATEGORIES.every((category) => roadTypeVisibility[category])
+  const showTripStats = Boolean(filters.tripId && (!filters.dayId || filters.segmentId))
+  const showDayStats = Boolean(filters.dayId && filters.segmentId)
 
   useEffect(() => {
     setIsSegmentOrderOpen(false)
@@ -75,13 +88,12 @@ function FilterPanel({
 
   return (
     <section className="card-section filter-panel-card">
-      <h2 className="filter-panel-title">旅程筛选</h2>
-
       <div className="filter-row">
-        <label className="trip-filter-field">
-          旅程
-          <div className="trip-filter-row">
+        <div className="filter-field trip-filter-field">
+          <label className="filter-field-label" htmlFor="trip-filter-select">旅程</label>
+          <div className="filter-control-row">
             <select
+              id="trip-filter-select"
               value={filters.tripId}
               onChange={(e) => onChange({ tripId: e.target.value, dayId: '', segmentId: '' })}
             >
@@ -92,27 +104,31 @@ function FilterPanel({
                 </option>
               ))}
             </select>
-            <div className="trip-filter-actions">
-              <button type="button" onClick={onOpenTripManager}>
-                {isReadonlyMode ? '查看旅程' : '管理旅程'}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (filters.tripId) onDuplicateTrip(filters.tripId)
-                }}
-                disabled={isReadonlyMode || !filters.tripId}
-              >
-                新建副本
-              </button>
-            </div>
+            <details className="filter-more-menu">
+              <summary aria-label="打开旅程操作菜单" title="旅程操作菜单">⋯</summary>
+              <div className="filter-more-menu-panel">
+                <button type="button" onClick={onOpenTripManager}>
+                  {isReadonlyMode ? '查看旅程' : '管理旅程'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (filters.tripId) onDuplicateTrip(filters.tripId)
+                  }}
+                  disabled={isReadonlyMode || !filters.tripId}
+                >
+                  新建副本
+                </button>
+              </div>
+            </details>
           </div>
-        </label>
+        </div>
 
-        <label className="date-filter-field">
-          日期
-          <div className="date-filter-row">
+        <div className="filter-field date-filter-field">
+          <label className="filter-field-label" htmlFor="day-filter-select">日期</label>
+          <div className="filter-control-row">
             <select
+              id="day-filter-select"
               value={filters.dayId}
               onChange={(e) => onChange({ ...filters, dayId: e.target.value, segmentId: '' })}
               disabled={!filters.tripId}
@@ -124,41 +140,45 @@ function FilterPanel({
                 </option>
               ))}
             </select>
-            <div className="date-filter-actions">
-              <button
-                type="button"
-                onClick={() => onInsertDayAfter(filters.tripId, filters.dayId)}
-                disabled={isReadonlyMode || !filters.tripId || !filters.dayId}
-                title="在当前日期后插入空白的一天，并将后续日期顺延一天"
-              >
-                插入下一天
-              </button>
-              <button
-                type="button"
-                className="danger-btn"
-                onClick={() => onDeleteDay(filters.tripId, filters.dayId)}
-                disabled={isReadonlyMode || !filters.tripId || !filters.dayId}
-                title="删除当前日期，并将后续日期提前一天"
-              >
-                删除当天
-              </button>
-              <button
-                type="button"
-                aria-expanded={isSegmentOrderOpen}
-                aria-controls="day-segment-order-panel"
-                onClick={() => setIsSegmentOrderOpen((current) => !current)}
-                disabled={isReadonlyMode || !filters.tripId || !filters.dayId || segmentOptions.length < 2}
-                title={segmentOptions.length < 2 ? '当天至少需要两条路段才能排序' : '调整当天全部路段的先后顺序'}
-              >
-                {isSegmentOrderOpen ? '收起路段排序' : '调整路段顺序'}
-              </button>
-            </div>
+            <details className="filter-more-menu">
+              <summary aria-label="打开日期操作菜单" title="日期操作菜单">⋯</summary>
+              <div className="filter-more-menu-panel">
+                <button
+                  type="button"
+                  onClick={() => onInsertDayAfter(filters.tripId, filters.dayId)}
+                  disabled={isReadonlyMode || !filters.tripId || !filters.dayId}
+                  title="在当前日期后插入空白的一天，并将后续日期顺延一天"
+                >
+                  插入下一天
+                </button>
+                <button
+                  type="button"
+                  className="danger-btn"
+                  onClick={() => onDeleteDay(filters.tripId, filters.dayId)}
+                  disabled={isReadonlyMode || !filters.tripId || !filters.dayId}
+                  title="删除当前日期，并将后续日期提前一天"
+                >
+                  删除当天
+                </button>
+                <button
+                  type="button"
+                  aria-expanded={isSegmentOrderOpen}
+                  aria-controls="day-segment-order-panel"
+                  onClick={() => setIsSegmentOrderOpen((current) => !current)}
+                  disabled={isReadonlyMode || !filters.tripId || !filters.dayId || segmentOptions.length < 2}
+                  title={segmentOptions.length < 2 ? '当天至少需要两条路段才能排序' : '调整当天全部路段的先后顺序'}
+                >
+                  {isSegmentOrderOpen ? '收起路段排序' : '调整路段顺序'}
+                </button>
+              </div>
+            </details>
           </div>
-        </label>
+        </div>
 
-        <label className="segment-filter-field">
-          路段
+        <div className="filter-field segment-filter-field">
+          <label className="filter-field-label" htmlFor="segment-filter-select">路段</label>
           <select
+            id="segment-filter-select"
             value={filters.segmentId}
             onChange={(e) => onChange({ ...filters, segmentId: e.target.value })}
             disabled={!filters.dayId}
@@ -170,7 +190,7 @@ function FilterPanel({
               </option>
             ))}
           </select>
-        </label>
+        </div>
       </div>
 
       {isSegmentOrderOpen && selectedTrip && selectedDay && (
@@ -228,58 +248,130 @@ function FilterPanel({
         </section>
       )}
 
-      {!filters.tripId && <p className="hint-text filter-hint">已选择“全部旅程”，可查看所有路段。</p>}
-      {filters.tripId && !filters.dayId && <p className="hint-text filter-hint">当前为该旅程下“全部日期”。</p>}
-      {filters.dayId && !filters.segmentId && <p className="hint-text filter-hint">当前为该日期下“全部路段”。</p>}
-
-      <div className="filter-stats-row">
-        {filters.tripId && <p>旅程总里程：{tripDistanceText}</p>}
-        {filters.tripId && <p>旅程预计行驶时间：{tripDurationText}</p>}
-        {filters.tripId && <p>旅程预估过路费：{tripTollText}</p>}
-        {filters.dayId && <p>当日总里程：{dayDistanceText}</p>}
-        {filters.dayId && <p>当日预计行驶时间：{dayDurationText}</p>}
-        {filters.dayId && <p>当日预估过路费：{dayTollText}</p>}
-      </div>
-
       <div className="route-color-mode-section">
-        <p className="route-color-mode-title">地图轨迹着色</p>
-        <div className="route-color-mode-options" role="radiogroup" aria-label="地图轨迹评分可视化">
-          <label className={`route-color-mode-option ${routeColorMode === 'default' ? 'active' : ''}`}>
-            <input
-              type="radio"
-              name="route-color-mode"
-              checked={routeColorMode === 'default'}
-              onChange={() => onChangeRouteColorMode('default')}
-            />
-            默认颜色
-          </label>
-          <label className={`route-color-mode-option ${routeColorMode === 'scenic' ? 'active' : ''}`}>
-            <input
-              type="radio"
-              name="route-color-mode"
-              checked={routeColorMode === 'scenic'}
-              disabled={!canUseScoreColoring}
-              onChange={() => onChangeRouteColorMode('scenic')}
-            />
-            风景评分可视化
-          </label>
-          <label className={`route-color-mode-option ${routeColorMode === 'difficulty' ? 'active' : ''}`}>
-            <input
-              type="radio"
-              name="route-color-mode"
-              checked={routeColorMode === 'difficulty'}
-              disabled={!canUseScoreColoring}
-              onChange={() => onChangeRouteColorMode('difficulty')}
-            />
-            难度评分可视化
-          </label>
+        <div className="route-color-toolbar">
+          <span className="route-color-mode-title">着色</span>
+          <div className="route-color-mode-options" role="radiogroup" aria-label="地图轨迹着色模式">
+            <label className={`route-color-mode-option ${routeColorMode === 'default' ? 'active' : ''}`}>
+              <input
+                type="radio"
+                name="route-color-mode"
+                checked={routeColorMode === 'default'}
+                onChange={() => onChangeRouteColorMode('default')}
+              />
+              默认
+            </label>
+            <label className={`route-color-mode-option ${routeColorMode === 'scenic' ? 'active' : ''}`}>
+              <input
+                type="radio"
+                name="route-color-mode"
+                checked={routeColorMode === 'scenic'}
+                disabled={!canUseScoreColoring}
+                onChange={() => onChangeRouteColorMode('scenic')}
+              />
+              风景评分
+            </label>
+            <label className={`route-color-mode-option ${routeColorMode === 'difficulty' ? 'active' : ''}`}>
+              <input
+                type="radio"
+                name="route-color-mode"
+                checked={routeColorMode === 'difficulty'}
+                disabled={!canUseScoreColoring}
+                onChange={() => onChangeRouteColorMode('difficulty')}
+              />
+              难度评分
+            </label>
+            <label className={`route-color-mode-option ${routeColorMode === 'roadType' ? 'active' : ''}`}>
+              <input
+                type="radio"
+                name="route-color-mode"
+                checked={routeColorMode === 'roadType'}
+                onChange={() => onChangeRouteColorMode('roadType')}
+              />
+              道路类型
+            </label>
+          </div>
+          <div className={`route-color-trailing-controls ${routeColorMode === 'roadType' ? 'has-road-type-controls' : ''}`}>
+            {routeColorMode === 'roadType' && (
+              <div className="road-type-visibility-controls" aria-label="道路类型显示开关">
+                <div className="road-type-visibility-options">
+                  {ROAD_TYPE_MAP_CATEGORIES.map((category) => (
+                    <label className="road-type-visibility-option" key={category}>
+                      <input
+                        type="checkbox"
+                        checked={roadTypeVisibility[category]}
+                        onChange={(event) => onChangeRoadTypeVisibility({
+                          ...roadTypeVisibility,
+                          [category]: event.target.checked,
+                        })}
+                      />
+                      <span className="road-type-color-chip" style={{ backgroundColor: ROAD_TYPE_MAP_COLORS[category] }} />
+                      {ROAD_TYPE_MAP_LABELS[category]}
+                    </label>
+                  ))}
+                </div>
+                <div className="road-type-visibility-actions">
+                  <button
+                    type="button"
+                    onClick={() => onChangeRoadTypeVisibility({
+                      EXPRESSWAY: true,
+                      NATIONAL_ROAD: true,
+                      PROVINCIAL_ROAD: true,
+                      OTHER: true,
+                    })}
+                    disabled={areAllRoadTypesVisible}
+                  >
+                    全选
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onChangeRoadTypeVisibility({
+                      EXPRESSWAY: false,
+                      NATIONAL_ROAD: false,
+                      PROVINCIAL_ROAD: false,
+                      OTHER: false,
+                    })}
+                    disabled={!ROAD_TYPE_MAP_CATEGORIES.some((category) => roadTypeVisibility[category])}
+                  >
+                    全不选
+                  </button>
+                </div>
+              </div>
+            )}
+            <details className="route-color-info">
+              <summary aria-label="查看地图着色说明" title="查看地图着色说明">ⓘ</summary>
+              <div className="route-color-info-popover">
+                <p>着色模式互斥，同一时间最多开启一种可视化。</p>
+                {routeColorMode === 'roadType' ? (
+                  <p>灰色代表待核实，且不受四类道路开关影响；地图上的“道路统计”图例可查看当前范围与历史累计。</p>
+                ) : !canUseScoreColoring ? (
+                  <p>评分着色仅在选中具体旅程时可用；“全部旅程”会混合多次记录，已自动关闭评分着色。</p>
+                ) : null}
+              </div>
+            </details>
+          </div>
         </div>
-        <p className="hint-text filter-hint">
-          {canUseScoreColoring
-            ? '评分着色模式互斥，同一时间最多开启一种可视化。'
-            : '评分着色仅在选中具体旅程时可用；“全部旅程”会混合多次记录，已自动关闭评分着色。'}
-        </p>
       </div>
+
+      {(showTripStats || showDayStats) && (
+        <div
+          className={`filter-stats-row ${showTripStats && showDayStats ? 'has-two-scopes' : ''}`}
+          aria-label="筛选范围统计"
+        >
+          {showTripStats && (
+            <p>
+              <strong className="filter-stat-label">旅程总计</strong>
+              里程 {tripDistanceText} · 预计 {tripDurationText} · 过路费 {tripTollText}
+            </p>
+          )}
+          {showDayStats && (
+            <p>
+              <strong className="filter-stat-label">当日统计</strong>
+              里程 {dayDistanceText} · 预计 {dayDurationText} · 过路费 {dayTollText}
+            </p>
+          )}
+        </div>
+      )}
     </section>
   )
 }

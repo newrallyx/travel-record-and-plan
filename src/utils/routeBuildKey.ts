@@ -1,4 +1,6 @@
 import type { RouteSegment } from '../types/trip'
+import type { RoadAnalysisMeta, RouteRoadPart } from '../types/roadStatistics'
+import { ROAD_CLASSIFIER_VERSION } from '../config/roadStatistics.ts'
 
 const ROUTE_BUILD_VERSION = 'amap-v3-strategy-v2'
 
@@ -43,6 +45,57 @@ export function buildSegmentRouteKey(segment: RouteSegment): string {
 export function canDisplaySegmentRouteCache(segment: RouteSegment, routeBuildKey: string): boolean {
   return routeBuildKey === buildSegmentRouteKey(segment)
     || routeBuildKey === buildLegacySegmentRouteKey(segment)
+}
+
+export type RoadAnalysisFreshness = 'current' | 'stale' | 'missing'
+
+/** 只有驾车和骑行有适用的道路 step；未来新增路线类型不能无差别纳入。 */
+export function isRoadAnalysisApplicableRouteType(routeType: RouteSegment['routeType']): boolean {
+  return routeType === undefined || routeType === 'DRIVING' || routeType === 'CYCLING'
+}
+
+export interface CachedRoadAnalysisCandidate {
+  routeBuildKey: string
+  roadParts?: readonly RouteRoadPart[]
+  roadAnalysis?: RoadAnalysisMeta
+}
+
+export interface CurrentRoadAnalysisCandidate extends CachedRoadAnalysisCandidate {
+  roadParts: readonly RouteRoadPart[]
+  roadAnalysis: RoadAnalysisMeta & { routeBuildKey: string }
+}
+
+/**
+ * 路线几何与道路分析采用不同的有效性边界：旧 key 仍可显示几何，但道路分析
+ * 必须由当前完整 routeBuildKey 和当前分类规则生成，且分析元数据中的 key 必须
+ * 与缓存记录一致。
+ */
+export function getRoadAnalysisFreshness(
+  segment: RouteSegment,
+  cache: CachedRoadAnalysisCandidate,
+): RoadAnalysisFreshness {
+  if (!Array.isArray(cache.roadParts) || cache.roadParts.length === 0 || !cache.roadAnalysis) {
+    return 'missing'
+  }
+
+  const currentRouteBuildKey = buildSegmentRouteKey(segment)
+  if (
+    !isRoadAnalysisApplicableRouteType(segment.routeType)
+    || cache.routeBuildKey !== currentRouteBuildKey
+    || cache.roadAnalysis.routeBuildKey !== cache.routeBuildKey
+    || cache.roadAnalysis.classifierVersion !== ROAD_CLASSIFIER_VERSION
+  ) {
+    return 'stale'
+  }
+
+  return 'current'
+}
+
+export function hasCurrentRoadAnalysis(
+  segment: RouteSegment,
+  cache: CachedRoadAnalysisCandidate,
+): cache is CurrentRoadAnalysisCandidate {
+  return getRoadAnalysisFreshness(segment, cache) === 'current'
 }
 
 /**

@@ -1,16 +1,16 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { normalizeTripOrders, sortTripsByOrder } from '../src/utils/tripOrder.ts'
+import { normalizeTripOrders, sortTripsByOrder, sortTripsByStartDate } from '../src/utils/tripOrder.ts'
 
-function createTrip(id, category, order) {
+function createTrip(id, category, order, startDate = '2026-01-01', endDate = '2026-01-01') {
   return {
     id,
     category,
     order,
     title: id,
-    startDate: '2026-01-01',
-    endDate: '2026-01-01',
+    startDate,
+    endDate,
     days: [],
   }
 }
@@ -42,4 +42,38 @@ test('trip order normalization repairs gaps and duplicates independently per wor
     'review-first': 0,
     'plan-first': 1,
   })
+})
+
+test('trips are sorted by start date with end date as tiebreaker', () => {
+  const trips = [
+    createTrip('late', 'plan', 0, '2026-03-01', '2026-03-05'),
+    createTrip('early', 'plan', 1, '2026-01-10', '2026-01-12'),
+    createTrip('mid', 'plan', 2, '2026-02-01', '2026-02-03'),
+    createTrip('same-start-long', 'plan', 3, '2026-02-01', '2026-02-20'),
+  ]
+
+  assert.deepEqual(sortTripsByStartDate(trips).map((trip) => trip.id), [
+    'early',
+    'mid',
+    'same-start-long',
+    'late',
+  ])
+})
+
+test('inserted trip order is assigned by start date within the workspace', () => {
+  const trips = [
+    createTrip('existing-late', 'review', 0, '2026-03-01', '2026-03-05'),
+    createTrip('existing-early', 'review', 1, '2026-01-10', '2026-01-12'),
+    createTrip('other-workspace', 'plan', 0, '2026-06-01', '2026-06-02'),
+  ]
+  const newTrip = createTrip('new-trip', 'review', 0, '2026-02-01', '2026-02-03')
+
+  const orderById = new Map(
+    sortTripsByStartDate([...trips.filter((trip) => trip.category === 'review'), newTrip])
+      .map((trip, order) => [trip.id, order]),
+  )
+
+  assert.equal(orderById.get('existing-early'), 0)
+  assert.equal(orderById.get('new-trip'), 1)
+  assert.equal(orderById.get('existing-late'), 2)
 })

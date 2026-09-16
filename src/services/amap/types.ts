@@ -1,3 +1,5 @@
+import type { RoadAnalysisMeta, RouteRoadPart } from '../../types/roadStatistics.ts'
+
 export interface AMapTip {
   id: string
   name: string
@@ -40,6 +42,8 @@ export interface DrivingRequestPoint {
 
 export interface DrivingRouteResult {
   polyline: Array<[number, number]>
+  roadParts?: RouteRoadPart[]
+  roadAnalysis?: RoadAnalysisMeta
   distanceText: string
   durationText: string
   durationSeconds?: number
@@ -59,6 +63,7 @@ export interface AMapServiceError {
 
 export interface RouteApiResult {
   polyline: Array<[number, number]>
+  roadParts?: RouteRoadPart[]
   distanceText: string
   durationText: string
   durationSeconds?: number

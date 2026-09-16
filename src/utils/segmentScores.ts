@@ -1,14 +1,15 @@
 import type { RouteColorMode, RouteSegment } from '../types/trip'
+import { SCORE_MAX, SCORE_MIN } from '../config/roadStatistics.ts'
 
-export const SCORE_MIN = 1
-export const SCORE_MAX = 10
+export { SCORE_MAX, SCORE_MIN } from '../config/roadStatistics.ts'
 export const UNRATED_SEGMENT_COLOR = '#94a3b8'
 export type SegmentScoreField = 'scenicScore' | 'difficultyScore'
+export type SegmentScoreColorMode = Extract<RouteColorMode, 'scenic' | 'difficulty'>
 
 export const segmentScoreFieldConfigs: Array<{
   field: SegmentScoreField
   label: string
-  mode: Exclude<RouteColorMode, 'default'>
+  mode: SegmentScoreColorMode
 }> = [
   { field: 'scenicScore', label: '风景评分', mode: 'scenic' },
   { field: 'difficultyScore', label: '难度评分', mode: 'difficulty' },
@@ -100,7 +101,7 @@ function colorFromAnchors(ratio: number, anchors: Array<{ at: number; color: str
   return anchors[anchors.length - 1].color
 }
 
-export function scoreToColor(score: number | null | undefined, mode: Exclude<RouteColorMode, 'default'>): string {
+export function scoreToColor(score: number | null | undefined, mode: SegmentScoreColorMode): string {
   const ratio = normalizeScoreRatio(score)
 
   if (mode === 'scenic') {
@@ -121,7 +122,7 @@ export function scoreToColor(score: number | null | undefined, mode: Exclude<Rou
   ])
 }
 
-export function getSegmentScore(segment: RouteSegment, mode: Exclude<RouteColorMode, 'default'>): number | null {
+export function getSegmentScore(segment: RouteSegment, mode: SegmentScoreColorMode): number | null {
   return mode === 'scenic' ? normalizeScore(segment.scenicScore) : normalizeScore(segment.difficultyScore)
 }
 
@@ -130,13 +131,13 @@ export function getSegmentDisplayColor(
   routeColorMode: RouteColorMode,
   fallbackColor: string,
 ): string {
-  if (routeColorMode === 'default') return fallbackColor
+  if (routeColorMode === 'default' || routeColorMode === 'roadType') return fallbackColor
   const score = getSegmentScore(segment, routeColorMode)
   if (score === null) return UNRATED_SEGMENT_COLOR
   return scoreToColor(score, routeColorMode)
 }
 
-export function getScoreGradient(mode: Exclude<RouteColorMode, 'default'>): string {
+export function getScoreGradient(mode: SegmentScoreColorMode): string {
   const start = scoreToColor(SCORE_MIN, mode)
   const middle = scoreToColor((SCORE_MIN + SCORE_MAX) / 2, mode)
   const end = scoreToColor(SCORE_MAX, mode)

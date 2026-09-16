@@ -183,7 +183,8 @@ function TripEditor({
   }
 
   return (
-    <section className="card-section">
+    <section className="card-section trip-editor-card">
+      <h2>新建内容</h2>
       <div className="trip-editor-launchers" aria-label="新建内容">
         <button
           type="button"
@@ -212,8 +213,6 @@ function TripEditor({
       {expandedPanel === null && !creationMessage && (
         <p className="trip-editor-collapsed-hint">需要时展开新建表单；日常浏览和筛选无需经过表单。</p>
       )}
-      <h2>新建旅程与路段</h2>
-
       {expandedPanel === 'trip' && <form id="new-trip-form" className="form-block trip-editor-form" onSubmit={handleAddTrip}>
         <h3>新增旅程</h3>
         <label className="form-field" htmlFor="new-trip-title">
@@ -222,11 +221,32 @@ function TripEditor({
         </label>
         <label className="form-field" htmlFor="new-trip-start-date">
           <span>开始日期</span>
-          <input id="new-trip-start-date" type="date" value={tripStartDate} onChange={(e) => setTripStartDate(e.target.value)} disabled={isReadonlyMode} />
+          <input
+            id="new-trip-start-date"
+            type="date"
+            value={tripStartDate}
+            onChange={(e) => {
+              const nextStartDate = e.target.value
+              setTripStartDate(nextStartDate)
+              if (!tripEndDate || tripEndDate === tripStartDate) {
+                setTripEndDate(nextStartDate)
+              }
+            }}
+            disabled={isReadonlyMode}
+          />
         </label>
         <label className="form-field" htmlFor="new-trip-end-date">
           <span>结束日期</span>
-          <input id="new-trip-end-date" type="date" value={tripEndDate} onChange={(e) => setTripEndDate(e.target.value)} disabled={isReadonlyMode} />
+          <input
+            id="new-trip-end-date"
+            type="date"
+            value={tripEndDate}
+            onFocus={() => {
+              if (!tripEndDate && tripStartDate) setTripEndDate(tripStartDate)
+            }}
+            onChange={(e) => setTripEndDate(e.target.value)}
+            disabled={isReadonlyMode}
+          />
         </label>
         <button type="submit" className="btn-primary" disabled={isReadonlyMode}>添加旅程</button>
         {tripError && <p className="error-text">{tripError}</p>}

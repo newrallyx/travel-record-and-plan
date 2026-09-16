@@ -1,4 +1,5 @@
 import type { CoordPoint, RouteSegment } from '../../types/trip'
+import type { RoadAnalysisMeta, RouteRoadPart } from '../../types/roadStatistics'
 
 export type PointKind = 'start' | 'via' | 'end'
 export type EditMode = 'start' | 'end' | 'track'
@@ -8,6 +9,10 @@ export interface SegmentTrack {
   segmentName: string
   points: Array<{ name: string; lat: number; lon: number; type: PointKind }>
   line: CoordPoint[]
+  /** 道路分析只保留在路线缓存中；地图读取到当前分析时附带用于分段绘制。 */
+  roadParts?: RouteRoadPart[]
+  roadAnalysis?: RoadAnalysisMeta
+  distanceMeters?: number
 }
 
 export interface SegmentRouteDescriptor {
@@ -26,6 +31,8 @@ export interface ResolvedRoutePatch {
   tollDistanceMeters: number | null
   tollUpdatedAt?: string
   routeBuildKey: string
+  roadParts?: RouteRoadPart[]
+  roadAnalysis?: RoadAnalysisMeta
 }
 
 export interface RouteRefreshRequest {

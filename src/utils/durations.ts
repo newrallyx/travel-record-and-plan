@@ -32,6 +32,12 @@ export function getSegmentDurationSeconds(segment: RouteSegment): number | null 
   return normalizeDurationSeconds(segment.estimatedDurationSeconds) ?? null
 }
 
+/** 统计“驾驶时间”时排除骑行算路时长；总路线用时仍使用 getSegmentDurationSeconds。 */
+export function getSegmentDrivingDurationSeconds(segment: RouteSegment): number | null {
+  if ((segment.routeType ?? 'DRIVING') !== 'DRIVING') return null
+  return getSegmentDurationSeconds(segment)
+}
+
 export function summarizeEstimatedDurations(segments: RouteSegment[]): DurationSummary {
   return segments.reduce<DurationSummary>(
     (summary, segment) => {

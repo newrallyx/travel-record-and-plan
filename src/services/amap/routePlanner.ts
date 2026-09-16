@@ -1,13 +1,16 @@
 import type { RoutePreference } from '../../types/trip'
-import { sumCompleteDurationSeconds } from '../../utils/durations'
-import { requestCyclingRoute, requestDrivingRoute } from './routeApi'
+import { sumCompleteDurationSeconds } from '../../utils/durations.ts'
+import { buildRouteRoadAnalysis } from '../../utils/roadAnalysis.ts'
+import { requestCyclingRoute, requestDrivingRoute } from './routeApi.ts'
+import { enrichRoadPartsWithPolylineProvince } from './roadProvinceEnrichment.ts'
 import type {
   AMapServiceError,
   DrivingRequestPoint,
   DrivingRouteResult,
   PlannedRouteResponse,
+  RouteApiResult,
 } from './types'
-import { buildRouteKey, preferenceToStrategy, toLonLatText } from './utils'
+import { buildRouteKey, preferenceToStrategy, toLonLatText } from './utils.ts'
 
 const ROUTE_QUEUE_CONCURRENCY = 2
 const ROUTE_REQUEST_DELAY_MS = 200
@@ -102,19 +105,10 @@ async function planDrivingRouteRaw(
 
   try {
     const result = await requestDrivingRoute(origin, destination, strategy, waypoints)
+    const roadParts = await enrichRoadPartsWithPolylineProvince(result.roadParts ?? [])
+    const analyzedAt = new Date().toISOString()
     return {
-      route: {
-        polyline: result.polyline,
-        distanceText: result.distanceText,
-        durationText: result.durationText,
-        durationSeconds: result.durationSeconds,
-        distanceMeters: result.distanceMeters,
-        estimatedTollYuan: result.estimatedTollYuan,
-        tollDistanceMeters: result.tollDistanceMeters,
-        tollUpdatedAt: typeof result.estimatedTollYuan === 'number' ? new Date().toISOString() : undefined,
-        durationUpdatedAt: typeof result.durationSeconds === 'number' ? new Date().toISOString() : undefined,
-        routeKey,
-      },
+      route: buildDrivingRouteResult({ ...result, roadParts }, routeKey, analyzedAt),
       error: null,
     }
   } catch (error) {
@@ -122,6 +116,35 @@ async function planDrivingRouteRaw(
       route: null,
       error: { message: (error as Error).message || '高德驾车规划请求失败，请检查网络或稍后重试。' },
     }
+  }
+}
+
+/** 将高德原始解析结果转换为应用内路线结果，但不进行任何持久化。 */
+export function buildDrivingRouteResult(
+  result: RouteApiResult,
+  routeKey: string,
+  analyzedAt = new Date().toISOString(),
+): DrivingRouteResult {
+  const roadAnalysis = buildRouteRoadAnalysis(
+    result.roadParts ?? [],
+    result.distanceMeters,
+    analyzedAt,
+    routeKey,
+  )
+
+  return {
+    polyline: result.polyline,
+    roadParts: roadAnalysis.roadParts,
+    roadAnalysis: roadAnalysis.meta,
+    distanceText: result.distanceText,
+    durationText: result.durationText,
+    durationSeconds: result.durationSeconds,
+    distanceMeters: result.distanceMeters,
+    estimatedTollYuan: result.estimatedTollYuan,
+    tollDistanceMeters: result.tollDistanceMeters,
+    tollUpdatedAt: typeof result.estimatedTollYuan === 'number' ? analyzedAt : undefined,
+    durationUpdatedAt: typeof result.durationSeconds === 'number' ? analyzedAt : undefined,
+    routeKey,
   }
 }
 
@@ -170,6 +193,7 @@ export async function planCyclingRoute(
   const run = async () => {
     await sleep(ROUTE_REQUEST_DELAY_MS)
     const polyline: Array<[number, number]> = []
+    const roadParts = [] as NonNullable<RouteApiResult['roadParts']>
     let distanceMeters = 0
     let hasCompleteDistance = true
     const legDurations: Array<number | undefined> = []
@@ -183,13 +207,23 @@ export async function planCyclingRoute(
       }
       legDurations.push(leg.durationSeconds)
       polyline.push(...leg.polyline)
+      roadParts.push(...await enrichRoadPartsWithPolylineProvince(leg.roadParts ?? []))
     }
 
     if (!polyline.length) throw new Error('骑行规划失败')
 
+    const analyzedAt = new Date().toISOString()
+    const roadAnalysis = buildRouteRoadAnalysis(
+      roadParts,
+      hasCompleteDistance ? Math.round(distanceMeters) : undefined,
+      analyzedAt,
+      routeKey,
+    )
     const durationSeconds = sumCompleteDurationSeconds(legDurations)
     const route: DrivingRouteResult = {
       polyline,
+      roadParts: roadAnalysis.roadParts,
+      roadAnalysis: roadAnalysis.meta,
       distanceText: hasCompleteDistance ? `${Math.round(distanceMeters)} 米` : '未知',
       durationText: typeof durationSeconds === 'number' ? `${durationSeconds} 秒` : '未知',
       durationSeconds,

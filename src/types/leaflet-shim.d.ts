@@ -12,6 +12,7 @@ declare module 'react-leaflet' {
   export const Marker: ComponentType<any>
   export const Popup: ComponentType<any>
   export const Polyline: ComponentType<any>
+  export const CircleMarker: ComponentType<any>
   export const TileLayer: ComponentType<any>
   export function useMap(): any
   export function useMapEvents(handlers: Record<string, (event: any) => void>): any

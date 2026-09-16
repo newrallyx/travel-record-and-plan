@@ -11,16 +11,18 @@ import PhotoViewerDialog from '../PhotoViewerDialog'
 import RoadbookDaySection from './RoadbookDaySection'
 import RoadbookMap from './RoadbookMap'
 import TravelogueDialog from './TravelogueDialog'
+import TripStatisticsPanel from './TripStatisticsPanel'
 import type { Trip } from '../../types/trip'
 
 interface TripRoadbookViewProps {
   trip: Trip
+  trips: readonly Trip[]
   onBack: () => void
   isReadonlyMode: boolean
   onSaveTravelogue: (travelogue: string) => void
 }
 
-function TripRoadbookView({ trip, onBack, isReadonlyMode, onSaveTravelogue }: TripRoadbookViewProps) {
+function TripRoadbookView({ trip, trips, onBack, isReadonlyMode, onSaveTravelogue }: TripRoadbookViewProps) {
   const { photosBySegment, allPhotos, desktopAvailable } = useRoadbookPhotos(trip)
   const [selectedPhotoId, setSelectedPhotoId] = useState<string | null>(null)
   const [travelogueOpen, setTravelogueOpen] = useState(false)
@@ -131,6 +133,8 @@ function TripRoadbookView({ trip, onBack, isReadonlyMode, onSaveTravelogue }: Tr
           onOpenPhoto={setSelectedPhotoId}
         />
       ))}
+
+      <TripStatisticsPanel trip={trip} trips={trips} />
 
       {!desktopAvailable && photoCount > 0 && (
         <p className="hint-text roadbook-photos-unavailable">

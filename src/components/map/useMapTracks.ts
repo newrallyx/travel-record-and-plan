@@ -1,11 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { planCyclingRoute, planDrivingRoute, searchAmapInputTips } from '../../services/amap'
-import { getSegmentRouteCache, saveSegmentRouteCache } from '../../services/routeCacheDb'
+import { getSegmentRouteCache } from '../../services/routeCacheDb'
 import type { RouteSegment } from '../../types/trip'
-import { buildSegmentRouteKey, canDisplaySegmentRouteCache, canReuseRecordedRoute } from '../../utils/routeBuildKey'
+import {
+  buildSegmentRouteKey,
+  canDisplaySegmentRouteCache,
+  canReuseRecordedRoute,
+  hasCurrentRoadAnalysis,
+} from '../../utils/routeBuildKey'
 import { hasCurrentDurationEstimate } from '../../utils/durations'
 import { hasCurrentTollEstimate } from '../../utils/tolls'
 import { getUnresolvedNamedWaypoints, hasResolvedWaypointCoordinate } from '../../utils/waypointValidation'
+import { buildResolvedRoutePatch } from './resolvedRoutePatch'
 import { fallbackLineFromPoints } from './trackUtils'
 import type { PointKind, ResolvedRoutePatch, RouteRefreshRequest, SegmentRouteDescriptor, SegmentTrack } from './types'
 
@@ -110,6 +116,10 @@ export function useMapTracks({
           // 已记录路线（几何与当前起终点/途经点/偏好匹配）是用户的原始记录，
           // 缺少时长/过路费估算时也绝不自动重算覆盖；估算仅可通过手动“刷新路线估算”更新。
           if (canReusePersisted && segment.points && !forceRefresh) {
+            const cache = await getSegmentRouteCache(segment.id)
+            const currentRoadParts = cache && hasCurrentRoadAnalysis(segment, cache)
+              ? cache.roadParts
+              : undefined
             if (needsTollEstimate || needsDurationEstimate) {
               warnings.push(
                 `路段「${segment.name}」已保留已记录路线；时长/过路费估算待计算，可点击“刷新路线估算”更新。`,
@@ -120,6 +130,12 @@ export function useMapTracks({
               segmentName: segment.name,
               points: markerPoints,
               line: segment.points,
+              ...(currentRoadParts ? { roadParts: currentRoadParts, roadAnalysis: cache?.roadAnalysis } : {}),
+              ...(typeof cache?.distanceMeters === 'number'
+                ? { distanceMeters: cache.distanceMeters }
+                : typeof segment.distanceMeters === 'number'
+                  ? { distanceMeters: segment.distanceMeters }
+                  : {}),
             }
             return
           }
@@ -140,6 +156,14 @@ export function useMapTracks({
                 segmentName: segment.name,
                 points: markerPoints,
                 line: cache.points,
+                ...(hasCurrentRoadAnalysis(segment, cache)
+                  ? { roadParts: cache.roadParts, roadAnalysis: cache.roadAnalysis }
+                  : {}),
+                ...(typeof cache.distanceMeters === 'number'
+                  ? { distanceMeters: cache.distanceMeters }
+                  : typeof segment.distanceMeters === 'number'
+                    ? { distanceMeters: segment.distanceMeters }
+                    : {}),
               }
               return
             }
@@ -187,31 +211,17 @@ export function useMapTracks({
           if (!active || runId !== buildRunIdRef.current) return
 
           let line = fallbackLineFromPoints(planningPoints.map((point) => ({ lat: point.lat, lon: point.lng })))
+          let resolvedPatch: ResolvedRoutePatch | null = null
           if (route?.polyline?.length) {
-            line = route.polyline.map(([lat, lng]) => ({ lat, lon: lng }))
-            patches.push({
-              segmentId: segment.id,
-              points: line,
-              distanceMeters: typeof route.distanceMeters === 'number' ? route.distanceMeters : null,
-              estimatedDurationSeconds:
-                typeof route.durationSeconds === 'number' ? route.durationSeconds : null,
-              durationUpdatedAt: route.durationUpdatedAt,
-              estimatedTollYuan:
-                routeType === 'DRIVING' && typeof route.estimatedTollYuan === 'number'
-                  ? route.estimatedTollYuan
-                  : null,
-              tollDistanceMeters:
-                routeType === 'DRIVING' && typeof route.tollDistanceMeters === 'number'
-                  ? route.tollDistanceMeters
-                  : null,
-              tollUpdatedAt: routeType === 'DRIVING' ? route.tollUpdatedAt : undefined,
-              routeBuildKey: buildKey,
-            })
-            void saveSegmentRouteCache({
+            const patch = buildResolvedRoutePatch({
               segmentId: segment.id,
               routeBuildKey: buildKey,
-              points: line,
+              routeType,
+              route,
             })
+            line = patch.points
+            patches.push(patch)
+            resolvedPatch = patch
           } else {
             const reason = error?.message ?? '未知错误'
             warnings.push(`路段「${segment.name}」规划失败：${reason}。`)
@@ -237,6 +247,14 @@ export function useMapTracks({
               },
             ],
             line,
+            ...(resolvedPatch?.roadParts
+              ? { roadParts: resolvedPatch.roadParts, roadAnalysis: resolvedPatch.roadAnalysis }
+              : {}),
+            ...(typeof resolvedPatch?.distanceMeters === 'number'
+              ? { distanceMeters: resolvedPatch.distanceMeters }
+              : typeof segment.distanceMeters === 'number'
+                ? { distanceMeters: segment.distanceMeters }
+                : {}),
           }
         })(),
       )

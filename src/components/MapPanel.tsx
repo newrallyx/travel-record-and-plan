@@ -1,14 +1,24 @@
-import { useEffect } from 'react'
-import type { CoordPoint, RouteColorMode, RouteSegment, Waypoint } from '../types/trip'
+import { useEffect, useMemo, useState } from 'react'
+import type { CoordPoint, RouteColorMode, RouteSegment, Trip, Waypoint } from '../types/trip'
 import type { LinkedPhotoRecord, PhotoCoordinate } from '../types/photo'
+import { getAllSegmentRouteCache, type RouteCacheRecord } from '../services/routeCacheDb'
 import { MapCanvas } from './map/MapCanvas'
 import type { ResolvedRoutePatch, RouteRefreshRequest, TrackSavePayload } from './map/types'
 import { useMapTracks } from './map/useMapTracks'
 import { useTrackEditing } from './map/useTrackEditing'
+import {
+  DEFAULT_ROAD_TYPE_VISIBILITY,
+  summarizeCurrentRoadTypeDistances,
+  summarizeHistoricalRoadTypeDistances,
+  type RoadTypeVisibility,
+} from './map/roadTypeVisualization'
 
 interface MapPanelProps {
   filteredSegments: RouteSegment[]
   routeColorMode: RouteColorMode
+  roadTypeVisibility?: RoadTypeVisibility
+  allTrips?: Trip[]
+  selectedTripId?: string
   isOverviewMode: boolean
   editingSegmentId: string | null
   onCancelEdit: () => void
@@ -41,6 +51,9 @@ interface MapPanelProps {
 function MapPanel({
   filteredSegments,
   routeColorMode,
+  roadTypeVisibility = DEFAULT_ROAD_TYPE_VISIBILITY,
+  allTrips = [],
+  selectedTripId = '',
   isOverviewMode,
   editingSegmentId,
   onCancelEdit,
@@ -77,6 +90,21 @@ function MapPanel({
   useEffect(() => {
     onRouteLoadingChange(loading)
   }, [loading, onRouteLoadingChange])
+  const [routeCaches, setRouteCaches] = useState<RouteCacheRecord[]>([])
+  useEffect(() => {
+    let active = true
+    const loadRouteCaches = async () => {
+      const records = await getAllSegmentRouteCache()
+      if (active) setRouteCaches(records)
+    }
+    void loadRouteCaches()
+    // 新规划路线的缓存写入是异步的；短暂重读可使累计图例尽快反映本次规划结果。
+    const retryTimer = window.setTimeout(() => void loadRouteCaches(), 300)
+    return () => {
+      active = false
+      window.clearTimeout(retryTimer)
+    }
+  }, [tracks])
   const trackEditing = useTrackEditing({
     tracks,
     editingSegmentId,
@@ -84,6 +112,11 @@ function MapPanel({
     onCancelEdit,
     onSaveEdit,
   })
+  const roadTypeLegend = useMemo(() => ({
+    current: summarizeCurrentRoadTypeDistances(trackEditing.renderedTracks, filteredSegments),
+    historical: summarizeHistoricalRoadTypeDistances(allTrips, routeCaches),
+    showCurrent: Boolean(selectedTripId),
+  }), [allTrips, filteredSegments, routeCaches, selectedTripId, trackEditing.renderedTracks])
 
   return (
     <section className="card-section map-section-with-toolbar">
@@ -152,6 +185,8 @@ function MapPanel({
         filteredSegments={filteredSegments}
         renderedTracks={trackEditing.renderedTracks}
         routeColorMode={routeColorMode}
+        roadTypeVisibility={roadTypeVisibility}
+        roadTypeLegend={roadTypeLegend}
         isOverviewMode={isOverviewMode}
         editingSegmentId={editingSegmentId}
         editMode={trackEditing.editMode}

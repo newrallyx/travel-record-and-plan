@@ -34,10 +34,10 @@ export function resolveDesktopRuntimeProfile(appName) {
         ? PHOTO_ALBUM_PREVIEW_USER_DATA_DIRECTORY
         : null,
     windowTitle: isP0FixesTest
-      ? '自驾旅行记录与规划工具 - P0 修复测试版'
+      ? '旅行轨迹记录与规划工具 - P0 修复测试版'
       : isPhotoAlbumPreview
-        ? '自驾旅行记录与规划工具 - 相册实验版'
-        : '自驾旅行记录与规划工具',
+        ? '旅行轨迹记录与规划工具 - 相册实验版'
+        : '旅行轨迹记录与规划工具',
   }
 }
 
