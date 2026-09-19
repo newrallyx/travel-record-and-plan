@@ -1,18 +1,196 @@
-/* 全局样式：设置字体、背景和基础排版，保证页面在不同浏览器里显示一致。 */
+/* ============================================================
+   全局基础样式 · 设计令牌
+   设计语言：深邃靛蓝 + 暖灰底 · 玻璃质感 · 克制的动效
+   ============================================================ */
+
 :root {
-  font-family: 'PingFang SC', 'Microsoft YaHei', 'Helvetica Neue', Helvetica, Arial,
+  --bg: #eef1f7;
+  --surface: #ffffff;
+  --surface-2: #f8fafc;
+  --surface-3: #f1f4f9;
+
+  --ink: #0f172a;
+  --ink-2: #334155;
+  --ink-3: #64748b;
+  --muted: #94a3b8;
+
+  --line: #e4e9f2;
+  --line-2: #d3dae6;
+  --line-3: #aab4c9;
+
+  --primary: #4f46e5;
+  --primary-strong: #4338ca;
+  --primary-soft: #eef2ff;
+  --primary-softer: #f5f7ff;
+  --primary-soft-hover: #e0e7ff;
+  --primary-line: #a5b4fc;
+
+  --danger: #e11d48;
+  --danger-soft: #fff1f2;
+  --success: #059669;
+  --success-soft: #ecfdf5;
+  --warning: #d97706;
+  --warning-soft: #fffbeb;
+
+  --radius-lg: 14px;
+  --radius-md: 10px;
+  --radius-sm: 8px;
+
+  --shadow-card: 0 1px 2px rgba(16, 24, 40, 0.06), 0 6px 16px -14px rgba(16, 24, 40, 0.18);
+  --shadow-card-hover: 0 2px 4px rgba(16, 24, 40, 0.08), 0 10px 22px -14px rgba(16, 24, 40, 0.2);
+  --shadow-pop:
+    0 18px 48px -12px rgba(16, 24, 40, 0.28),
+    0 4px 14px -6px rgba(16, 24, 40, 0.12);
+
+  --toast-surface: rgba(15, 23, 42, 0.92);
+
+  font-family: 'PingFang SC', 'Microsoft YaHei', 'Segoe UI', 'Helvetica Neue', Helvetica, Arial,
     sans-serif;
-  line-height: 1.5;
+  line-height: 1.55;
   font-weight: 400;
-  color: #1f2937;
-  background-color: #f3f4f6;
+  color: var(--ink-2);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 * {
   box-sizing: border-box;
 }
 
+html,
+body {
+  height: 100%;
+}
+
 body {
   margin: 0;
   min-height: 100vh;
+  font-size: 14px;
+  color: var(--ink-2);
+  background: var(--bg);
+}
+
+::selection {
+  background: rgba(99, 102, 241, 0.22);
+  color: var(--ink);
+}
+
+/* 精致细滚动条 */
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: #c6cedd;
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: #a5b0c4;
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+:focus-visible {
+  outline: 2px solid rgba(99, 102, 241, 0.65);
+  outline-offset: 2px;
+}
+
+/* 表单控件已有自定义焦点环（box-shadow ring），关闭默认 outline 避免双重指示 */
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ============================================================
+   深色模式设计令牌（跟随系统）
+   ============================================================ */
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --bg: #0b1120;
+    --surface: #101a2e;
+    --surface-2: #0d1524;
+    --surface-3: #1a2438;
+
+    --ink: #e6ebf5;
+    --ink-2: #c3cde0;
+    --ink-3: #8b98b3;
+    --muted: #64748b;
+
+    --line: rgba(148, 163, 184, 0.14);
+    --line-2: rgba(148, 163, 184, 0.3);
+    --line-3: rgba(148, 163, 184, 0.5);
+
+    --primary: #818cf8;
+    --primary-strong: #a5b4fc;
+    --primary-soft: rgba(99, 102, 241, 0.18);
+    --primary-softer: rgba(99, 102, 241, 0.1);
+    --primary-soft-hover: rgba(99, 102, 241, 0.26);
+    --primary-line: rgba(165, 180, 252, 0.5);
+
+    --danger: #fb7185;
+    --danger-soft: rgba(225, 29, 72, 0.16);
+    --success: #34d399;
+    --success-soft: rgba(5, 150, 105, 0.16);
+    --warning: #fbbf24;
+    --warning-soft: rgba(217, 119, 6, 0.16);
+
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 20px -14px rgba(0, 0, 0, 0.45);
+    --shadow-card-hover: 0 2px 4px rgba(0, 0, 0, 0.35), 0 12px 26px -14px rgba(0, 0, 0, 0.5);
+    --shadow-pop:
+      0 18px 48px -12px rgba(0, 0, 0, 0.6),
+      0 4px 14px -6px rgba(0, 0, 0, 0.4);
+
+    --toast-surface: rgba(51, 65, 85, 0.95);
+  }
+
+  body {
+    background: var(--bg);
+  }
+
+  ::selection {
+    background: rgba(129, 140, 248, 0.35);
+    color: var(--ink);
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background: #2c3a55;
+    border: 3px solid transparent;
+    border-radius: 999px;
+    background-clip: padding-box;
+  }
+
+  *::-webkit-scrollbar-thumb:hover {
+    background: #3d4d6e;
+    border: 3px solid transparent;
+    border-radius: 999px;
+    background-clip: padding-box;
+  }
 }

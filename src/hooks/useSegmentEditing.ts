@@ -1,4 +1,5 @@
 import { useMemo, type Dispatch, type SetStateAction } from 'react'
+import { saveManualSegmentRouteCache } from '../services/routeCacheDb.ts'
 import { buildSegmentRouteKey } from '../utils/routeBuildKey'
 import type { CoordPoint, RouteSegment, Waypoint } from '../types/trip'
 import type { EndpointDraft } from './useTripManager'
@@ -81,9 +82,27 @@ export function useSegmentEditing({
   }
 
   const saveSegmentTrack = (payload: { segmentId: string; startCoord: CoordPoint; endCoord: CoordPoint; points: CoordPoint[] }) => {
-    updateSegment(payload.segmentId, (segment) => {
-      const nextSegment = { ...segment, startCoord: payload.startCoord, endCoord: payload.endCoord, points: payload.points }
-      return { ...nextSegment, routeBuildKey: buildSegmentRouteKey(nextSegment) }
+    const target = findSegmentRef(payload.segmentId)?.segment
+    if (!target) return
+
+    const nextSegment = {
+      ...target,
+      startCoord: payload.startCoord,
+      endCoord: payload.endCoord,
+      points: payload.points,
+    }
+    const routeBuildKey = buildSegmentRouteKey(nextSegment)
+    updateSegment(payload.segmentId, (segment) => ({
+      ...segment,
+      startCoord: payload.startCoord,
+      endCoord: payload.endCoord,
+      points: payload.points,
+      routeBuildKey,
+    }))
+    void saveManualSegmentRouteCache({
+      segmentId: payload.segmentId,
+      routeBuildKey,
+      points: payload.points,
     })
   }
 

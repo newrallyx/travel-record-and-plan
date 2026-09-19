@@ -4,7 +4,7 @@ function toRadians(degrees: number): number {
   return (degrees * Math.PI) / 180
 }
 
-function calcPolylineDistanceMeters(points: CoordPoint[]): number | null {
+export function calcPolylineDistanceMeters(points: CoordPoint[]): number | null {
   if (points.length < 2) return null
 
   let total = 0

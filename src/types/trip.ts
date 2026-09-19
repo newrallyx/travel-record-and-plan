@@ -1,8 +1,45 @@
 // 旅程领域类型：统一定义 Trip / TripDay / RouteSegment 以及筛选与汇总类型。
 
-export type RoutePreference = 'HIGHWAY_FIRST' | 'AVOID_TOLL'
+export type RoutePreference = 'SPEED_FIRST' | 'HIGHWAY_FIRST' | 'AVOID_TOLL'
 export type RouteType = 'DRIVING' | 'CYCLING'
 export type TripCategory = 'review' | 'plan'
+export type RouteColorMode = 'default' | 'scenic' | 'difficulty' | 'roadType'
+
+// 复盘标签白名单：稳定英文代码存储，界面显示中文。
+// 不允许自由扩展，新增标签必须同时加入类型与 utils/reviewTags.ts。
+export type ReviewTag =
+  | 'SUNNY'
+  | 'OVERCAST'
+  | 'RAIN'
+  | 'FOG'
+  | 'SNOW'
+  | 'HOT'
+  | 'COLD'
+  | 'SMOOTH'
+  | 'CONGESTED'
+  | 'ROADWORK'
+  | 'ROUGH_ROAD'
+  | 'MOUNTAIN_ROAD'
+  | 'NIGHT_DRIVING'
+  | 'DETOUR'
+  | 'RELAXED'
+  | 'TIRED'
+  | 'SURPRISE'
+  | 'NEUTRAL'
+  | 'WORTH_REVISIT'
+  | 'NO_REVISIT'
+
+/** 实际行驶结果：全部可选，未填写不得显示为 0。 */
+export interface ActualDriveResult {
+  distanceMeters?: number
+  durationSeconds?: number
+  tollYuan?: number
+}
+
+export interface SegmentReviewFacts {
+  tags?: ReviewTag[]
+  actual?: ActualDriveResult
+}
 
 export interface CoordPoint {
   lat: number
@@ -39,8 +76,18 @@ export interface RouteSegment {
   endPlaceId?: string
   points?: CoordPoint[]
   distanceMeters?: number
+  estimatedDurationSeconds?: number
+  durationUpdatedAt?: string
+  estimatedTollYuan?: number
+  tollDistanceMeters?: number
+  tollUpdatedAt?: string
   routeBuildKey?: string
   waypoints?: Waypoint[]
+  scenicScore?: number | null
+  difficultyScore?: number | null
+  note?: string
+  photoIds?: string[]
+  reviewFacts?: SegmentReviewFacts
 }
 
 export interface TripDay {
@@ -57,6 +104,10 @@ export interface Trip {
   startDate: string
   endDate: string
   days: TripDay[]
+  /** 手动指定的旅程封面照片；被移除或不可访问时回退到默认封面。 */
+  coverPhotoId?: string
+  /** 生成的游记 Markdown 文本；保存后可在路书浏览中再次查看或下载。 */
+  travelogue?: string
 }
 
 export interface TripReview {
@@ -71,4 +122,6 @@ export interface FilterState {
 
 export interface RouteSummary {
   totalDistanceText: string
+  totalEstimatedDurationText: string
+  totalEstimatedTollText: string
 }

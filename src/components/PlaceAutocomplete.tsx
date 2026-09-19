@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { searchAmapInputTips, type AMapPlaceSuggestion } from '../services/amap'
 
 interface PlaceSelectResult {
@@ -10,6 +11,8 @@ interface PlaceSelectResult {
 }
 
 interface PlaceAutocompleteProps {
+  inputId?: string
+  inputLabel?: string
   valueText: string
   onValueTextChange: (text: string) => void
   onSelect: (result: PlaceSelectResult) => void
@@ -19,11 +22,21 @@ interface PlaceAutocompleteProps {
   debounceMs?: number
 }
 
+interface DropdownPosition {
+  top: number
+  left: number
+  width: number
+  maxHeight: number
+  openAbove: boolean
+}
+
 function isAdministrative(item: AMapPlaceSuggestion): boolean {
   return Boolean(item.isAdministrative)
 }
 
 function PlaceAutocomplete({
+  inputId,
+  inputLabel,
   valueText,
   onValueTextChange,
   onSelect,
@@ -40,8 +53,10 @@ function PlaceAutocomplete({
   const [isComposing, setIsComposing] = useState(false)
   const [hasUserEdited, setHasUserEdited] = useState(false)
   const [showSuggestions, setShowSuggestions] = useState(false)
+  const [dropdownPosition, setDropdownPosition] = useState<DropdownPosition | null>(null)
 
   const initialValueRef = useRef(valueText)
+  const fieldRef = useRef<HTMLDivElement | null>(null)
   const requestIdRef = useRef(0)
   const activeControllerRef = useRef<AbortController | null>(null)
 
@@ -50,6 +65,46 @@ function PlaceAutocomplete({
     const outOfScope = candidates.filter((item) => item.isOutOfScope)
     return { inScope, outOfScope }
   }, [candidates])
+
+  const updateDropdownPosition = useCallback(() => {
+    const field = fieldRef.current
+    if (!field) return
+
+    const rect = field.getBoundingClientRect()
+    const viewportPadding = 8
+    const dropdownGap = 4
+    const availableBelow = window.innerHeight - rect.bottom - dropdownGap - viewportPadding
+    const availableAbove = rect.top - dropdownGap - viewportPadding
+    const openAbove = availableBelow < 160 && availableAbove > availableBelow
+    const availableHeight = Math.max(48, openAbove ? availableAbove : availableBelow)
+    const maxHeight = Math.min(240, availableHeight)
+    const width = Math.min(Math.max(rect.width, 320), window.innerWidth - viewportPadding * 2)
+    const left = Math.min(
+      Math.max(rect.left, viewportPadding),
+      Math.max(viewportPadding, window.innerWidth - width - viewportPadding),
+    )
+    const top = openAbove
+      ? Math.max(viewportPadding, rect.top - dropdownGap)
+      : Math.min(rect.bottom + dropdownGap, window.innerHeight - viewportPadding)
+
+    setDropdownPosition({ top, left, width, maxHeight, openAbove })
+  }, [])
+
+  useLayoutEffect(() => {
+    if (!showSuggestions) {
+      setDropdownPosition(null)
+      return
+    }
+
+    updateDropdownPosition()
+    window.addEventListener('resize', updateDropdownPosition)
+    window.addEventListener('scroll', updateDropdownPosition, true)
+
+    return () => {
+      window.removeEventListener('resize', updateDropdownPosition)
+      window.removeEventListener('scroll', updateDropdownPosition, true)
+    }
+  }, [showSuggestions, updateDropdownPosition])
 
   useEffect(() => {
     if (!isFocused) {
@@ -175,10 +230,73 @@ function PlaceAutocomplete({
     setCandidates([])
   }
 
+  const suggestionDropdown = showSuggestions && dropdownPosition ? (
+    <div
+      className="autocomplete-dropdown autocomplete-dropdown-portal"
+      style={{
+        top: dropdownPosition.top,
+        left: dropdownPosition.left,
+        right: 'auto',
+        width: dropdownPosition.width,
+        maxHeight: dropdownPosition.maxHeight,
+        transform: dropdownPosition.openAbove ? 'translateY(-100%)' : undefined,
+      }}
+    >
+      {loading && <div className="autocomplete-item muted">搜索中...</div>}
+      {!loading && error && (
+        <div className="autocomplete-item muted">
+          {error}
+          <button type="button" className="tiny-btn" onMouseDown={retrySearch}>
+            重试
+          </button>
+        </div>
+      )}
+
+      {!loading && !error && groupedCandidates.inScope.length > 0 && (
+        <div className="autocomplete-group-title">范围内结果</div>
+      )}
+      {!loading &&
+        !error &&
+        groupedCandidates.inScope.map((candidate) => (
+          <button
+            type="button"
+            className="autocomplete-item"
+            key={`${candidate.id ?? candidate.name}-${candidate.lat}-${candidate.lng}`}
+            onMouseDown={() => handleSelect(candidate)}
+          >
+            <span>
+              {candidate.name}
+              {candidate.isAdministrative ? '（行政区）' : ''}
+            </span>
+            <small>{candidate.displayName}</small>
+          </button>
+        ))}
+
+      {!loading && !error && groupedCandidates.outOfScope.length > 0 && (
+        <div className="autocomplete-group-title">范围外结果</div>
+      )}
+      {!loading &&
+        !error &&
+        groupedCandidates.outOfScope.map((candidate) => (
+          <button
+            type="button"
+            className="autocomplete-item"
+            key={`fallback-${candidate.id ?? candidate.name}-${candidate.lat}-${candidate.lng}`}
+            onMouseDown={() => handleSelect(candidate)}
+          >
+            <span>{candidate.name}</span>
+            <small>{candidate.displayName}</small>
+          </button>
+        ))}
+    </div>
+  ) : null
+
   return (
-    <div className="autocomplete-field">
+    <div className="autocomplete-field" ref={fieldRef}>
       <div className="autocomplete-input-row">
         <input
+          id={inputId}
+          aria-label={inputLabel}
           value={valueText}
           onFocus={() => {
             setIsFocused(true)
@@ -221,56 +339,7 @@ function PlaceAutocomplete({
         )}
       </div>
 
-      {showSuggestions && (
-        <div className="autocomplete-dropdown">
-          {loading && <div className="autocomplete-item muted">搜索中...</div>}
-          {!loading && error && (
-            <div className="autocomplete-item muted">
-              {error}
-              <button type="button" className="tiny-btn" onMouseDown={retrySearch}>
-                重试
-              </button>
-            </div>
-          )}
-
-          {!loading && !error && groupedCandidates.inScope.length > 0 && (
-            <div className="autocomplete-group-title">范围内结果</div>
-          )}
-          {!loading &&
-            !error &&
-            groupedCandidates.inScope.map((candidate) => (
-              <button
-                type="button"
-                className="autocomplete-item"
-                key={`${candidate.id ?? candidate.name}-${candidate.lat}-${candidate.lng}`}
-                onMouseDown={() => handleSelect(candidate)}
-              >
-                <span>
-                  {candidate.name}
-                  {candidate.isAdministrative ? '（行政区）' : ''}
-                </span>
-                <small>{candidate.displayName}</small>
-              </button>
-            ))}
-
-          {!loading && !error && groupedCandidates.outOfScope.length > 0 && (
-            <div className="autocomplete-group-title">范围外结果</div>
-          )}
-          {!loading &&
-            !error &&
-            groupedCandidates.outOfScope.map((candidate) => (
-              <button
-                type="button"
-                className="autocomplete-item"
-                key={`fallback-${candidate.id ?? candidate.name}-${candidate.lat}-${candidate.lng}`}
-                onMouseDown={() => handleSelect(candidate)}
-              >
-                <span>{candidate.name}</span>
-                <small>{candidate.displayName}</small>
-              </button>
-            ))}
-        </div>
-      )}
+      {suggestionDropdown && createPortal(suggestionDropdown, document.body)}
     </div>
   )
 }
