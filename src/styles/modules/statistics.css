@@ -1,0 +1,1245 @@
+/* ---------- 数据统计（0.4.3） ---------- */
+
+.review-full-page {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+}
+
+.review-full-page > .roadbook-view,
+.review-full-page > .statistics-dashboard {
+  flex: 1;
+}
+
+/* workspace-layout 的 display:grid 会覆盖浏览器默认的 [hidden] 样式。 */
+
+.workspace-layout[hidden] {
+  display: none;
+}
+
+.statistics-dashboard {
+  min-width: 0;
+  min-height: 0;
+  padding: 4px 2px 28px;
+  overflow: auto;
+  color: var(--ink);
+}
+
+.statistics-dashboard-header,
+.statistics-module-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.statistics-dashboard-header {
+  margin-bottom: 18px;
+}
+
+.statistics-dashboard-header h2,
+.statistics-module-heading h3 {
+  margin: 0;
+  color: var(--ink);
+}
+
+.statistics-dashboard-header h2 {
+  font-size: 20px;
+}
+
+.statistics-dashboard-header p,
+.statistics-module-heading p {
+  margin: 5px 0 0;
+  color: var(--ink-3);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.statistics-module-heading h3 {
+  font-size: 16px;
+}
+
+.statistics-cache-note,
+.statistics-module-placeholder > .statistics-module-heading > span {
+  flex: none;
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: rgba(245, 158, 11, 0.12);
+  color: var(--warning-text);
+  font-size: var(--font-caption);
+  font-weight: 600;
+}
+
+.statistics-filter-bar {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  background: var(--surface);
+}
+
+.statistics-filter-bar label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--ink-3);
+  font-size: var(--font-caption);
+}
+
+.statistics-filter-bar select {
+  min-width: 150px;
+  padding: 6px 10px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.statistics-trip-filter select {
+  min-width: min(360px, 64vw);
+}
+
+.statistics-filter-bar select:focus,
+.statistics-segmented-control button:focus-visible,
+.statistics-sort-button:focus-visible {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: var(--shadow-focus);
+}
+
+.statistics-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 260px;
+  padding: 28px;
+  border: 1px dashed rgba(99, 102, 241, 0.32);
+  border-radius: 16px;
+  background: rgba(238, 242, 255, 0.55);
+  color: var(--ink-2);
+  text-align: center;
+}
+
+.statistics-empty-state strong {
+  color: var(--ink);
+}
+
+.statistics-empty-state span {
+  color: var(--ink-3);
+  font-size: 13px;
+}
+
+.statistics-overview {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(155px, 1fr));
+  gap: 10px;
+  min-width: 0;
+  margin-bottom: 16px;
+}
+
+.statistics-overview-card,
+.statistics-module,
+.statistics-score-summary article {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  border-color: var(--line);
+  box-shadow: var(--shadow-card);
+}
+
+.statistics-overview-card {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 0;
+  padding: 12px 14px;
+}
+
+.statistics-overview-card > span,
+.statistics-score-summary span {
+  color: var(--ink-3);
+  font-size: var(--font-caption);
+}
+
+.statistics-count-card > strong {
+  color: var(--primary-strong);
+  font-size: 22px;
+  line-height: 1.1;
+}
+
+.statistics-count-card > small,
+.statistics-metric-value small,
+.statistics-score-summary small,
+.statistics-cell-note {
+  color: var(--ink-3);
+  font-size: var(--font-caption);
+  line-height: 1.45;
+}
+
+.statistics-metric-value {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.statistics-metric-value strong {
+  color: var(--ink);
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+
+.statistics-metric-value.is-partial strong {
+  color: var(--warning-text);
+}
+
+/* 固定 0–100% 尺度，只辅助比较已有里程占比；未知值没有轨道。 */
+.statistics-distance-share {
+  display: grid;
+  gap: 5px;
+  width: 100%;
+  min-width: 72px;
+  max-width: 160px;
+  font-variant-numeric: tabular-nums;
+}
+
+.statistics-share-track {
+  display: block;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--surface-3);
+}
+
+.statistics-share-track > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--primary);
+}
+
+.statistics-module {
+  min-width: 0;
+  margin-bottom: 16px;
+  padding: 16px;
+}
+
+.statistics-module-heading {
+  margin-bottom: 14px;
+}
+
+.statistics-disclosure-button {
+  flex: none;
+  white-space: nowrap;
+}
+
+.statistics-module > [hidden] {
+  display: none;
+}
+
+.statistics-module-heading-with-tabs {
+  align-items: center;
+}
+
+.statistics-segmented-control {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-width: 620px;
+  padding: 3px;
+  border-radius: var(--radius-md);
+  background: rgba(226, 232, 240, 0.55);
+}
+
+.statistics-segmented-control button {
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--ink-3);
+  padding: 5px 9px;
+  font-size: var(--font-caption);
+  font-weight: 600;
+}
+
+.statistics-segmented-control button:hover:not(.active) {
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--ink-2);
+}
+
+.statistics-segmented-control button.active {
+  background: var(--surface);
+  color: var(--primary-strong);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12);
+}
+
+.statistics-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+}
+
+.statistics-table {
+  width: 100%;
+  min-width: 600px;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.statistics-trip-table {
+  min-width: 1180px;
+}
+
+.statistics-table th,
+.statistics-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+  color: var(--ink-2);
+  text-align: left;
+  vertical-align: top;
+}
+
+.statistics-table thead th {
+  background: var(--surface-2);
+  color: var(--ink-3);
+  font-size: var(--font-caption);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.statistics-table tbody tr:last-child th,
+.statistics-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.statistics-table tbody tr:hover:not(.statistics-pending-row) {
+  background: rgba(238, 242, 255, 0.5);
+}
+
+.statistics-table tbody th {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.statistics-sort-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: inherit;
+  cursor: pointer;
+}
+
+.statistics-sort-button:hover {
+  color: var(--primary-strong);
+}
+
+.statistics-trip-title {
+  display: block;
+  min-width: 140px;
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.statistics-trip-title + small {
+  display: block;
+  margin-top: 3px;
+  color: var(--ink-3);
+  font-size: var(--font-caption);
+  font-weight: 400;
+}
+
+.statistics-pending-row {
+  background: rgba(245, 158, 11, 0.06);
+}
+
+.statistics-pending-row th,
+.statistics-pending-row td {
+  color: #92400e;
+}
+
+.statistics-completeness-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 7px;
+  border-radius: 999px;
+  font-size: var(--font-caption);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.statistics-completeness-badge.complete {
+  background: rgba(16, 185, 129, 0.12);
+  color: var(--success-text);
+}
+
+.statistics-completeness-badge.partial {
+  background: rgba(245, 158, 11, 0.12);
+  color: var(--warning-text);
+}
+
+.statistics-completeness-badge.missing {
+  background: rgba(148, 163, 184, 0.18);
+  color: var(--ink-2);
+}
+
+.statistics-cell-note {
+  display: block;
+  margin-top: 5px;
+}
+
+.statistics-score-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.statistics-score-summary article {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 11px 12px;
+}
+
+.statistics-score-summary strong {
+  color: var(--ink);
+  font-size: 18px;
+}
+
+.statistics-module-placeholder {
+  min-height: 156px;
+}
+
+.statistics-placeholder-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: end;
+  gap: 12px;
+  height: 70px;
+  padding: 12px;
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+}
+
+.statistics-placeholder-grid span {
+  display: block;
+  min-height: 18px;
+  border-radius: 5px 5px 2px 2px;
+  background: linear-gradient(180deg, rgba(99, 102, 241, 0.15), rgba(99, 102, 241, 0.05));
+}
+
+.statistics-placeholder-grid span:nth-child(1) {
+  height: 32%;
+}
+
+.statistics-placeholder-grid span:nth-child(2) {
+  height: 76%;
+}
+
+.statistics-placeholder-grid span:nth-child(3) {
+  height: 52%;
+}
+
+.statistics-road-bar {
+  display: flex;
+  width: 100%;
+  min-height: 10px;
+  margin-bottom: 12px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.22);
+}
+
+.statistics-road-bar span {
+  min-width: 0;
+}
+
+.statistics-road-composition {
+  min-width: 760px;
+}
+
+.statistics-road-composition.is-compact {
+  min-width: 480px;
+}
+
+.statistics-road-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  margin-right: 7px;
+  border-radius: 50%;
+}
+
+.statistics-road-note {
+  margin: 9px 0 0;
+  color: var(--ink-3);
+  font-size: var(--font-caption);
+  line-height: 1.55;
+}
+
+.statistics-road-coverage {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px 14px;
+  margin-top: 6px;
+  color: var(--ink-3);
+  font-size: var(--font-caption);
+}
+
+.statistics-road-search {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--ink-3);
+  font-size: var(--font-caption);
+}
+
+.statistics-road-filters {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.statistics-road-filters > label:not(.statistics-road-search) {
+  display: flex;
+  min-width: 120px;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--ink-3);
+  font-size: var(--font-caption);
+}
+
+.statistics-road-filters > label select {
+  min-height: 34px;
+  padding: 6px 8px;
+}
+
+.statistics-road-search input {
+  width: 190px;
+  padding: 7px 9px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.statistics-road-search input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: var(--shadow-focus);
+}
+
+.road-analysis-toolbar,
+.road-analysis-progress {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 9px;
+}
+
+.road-analysis-toolbar label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--ink-3);
+  font-size: var(--font-caption);
+}
+
+.road-analysis-toolbar select,
+.road-analysis-corrections select,
+.road-analysis-correction-table select,
+.road-analysis-correction-table input {
+  min-width: 170px;
+  padding: 7px 9px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.road-analysis-progress {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  color: var(--ink-3);
+  font-size: var(--font-caption);
+}
+
+.road-analysis-progress strong {
+  color: var(--ink);
+}
+
+.road-analysis-result-list {
+  display: grid;
+  gap: 5px;
+  max-height: 190px;
+  margin-top: 10px;
+  overflow: auto;
+}
+
+.road-analysis-result-list > div {
+  display: grid;
+  grid-template-columns: minmax(140px, 0.5fr) minmax(240px, 1fr);
+  gap: 10px;
+  padding: 7px 9px;
+  border-left: 3px solid #94a3b8;
+  border-radius: 6px;
+  background: rgba(148, 163, 184, 0.08);
+  color: var(--ink-3);
+  font-size: var(--font-caption);
+}
+
+.road-analysis-result-list > div[data-status='success'] {
+  border-left-color: #10b981;
+}
+
+.road-analysis-result-list > div[data-status='pending'] {
+  border-left-color: #f59e0b;
+}
+
+.road-analysis-result-list > div[data-status='failed'] {
+  border-left-color: #ef4444;
+}
+
+.road-analysis-result-list > div[data-status='skipped'] {
+  border-left-color: #f59e0b;
+}
+
+.road-analysis-result-list strong {
+  color: var(--ink);
+}
+
+.road-analysis-corrections {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.road-analysis-corrections > header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.road-analysis-correction-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+}
+
+.road-analysis-correction-selectors {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(150px, 1fr));
+  gap: 9px;
+  min-width: min(100%, 700px);
+}
+
+.road-analysis-correction-selectors label {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--ink-3);
+  font-size: var(--font-caption);
+}
+
+.road-analysis-correction-selectors select {
+  width: 100%;
+  min-width: 0;
+}
+
+.road-analysis-corrections h4,
+.road-analysis-corrections p {
+  margin: 0;
+}
+
+.road-analysis-corrections h4 {
+  color: var(--ink);
+  font-size: var(--font-body);
+}
+
+.road-analysis-corrections p,
+.road-analysis-empty {
+  margin-top: 4px;
+  color: var(--ink-3);
+  font-size: var(--font-caption);
+}
+
+.road-analysis-correction-table {
+  min-width: 1050px;
+}
+
+.road-analysis-correction-table input {
+  min-width: 100px;
+  width: 120px;
+}
+
+.road-analysis-correction-actions {
+  display: flex;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.road-correction-selection-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin-bottom: 10px;
+  color: var(--ink-3);
+  font-size: var(--font-caption);
+}
+
+.road-correction-selection-wrap {
+  position: relative;
+}
+
+.road-analysis-correction-table .road-correction-select-cell {
+  width: 44px;
+  min-width: 44px;
+  text-align: center;
+  user-select: none;
+}
+
+.road-analysis-correction-table input[type='checkbox'] {
+  width: 17px;
+  height: 17px;
+  min-width: 17px;
+  padding: 0;
+  accent-color: var(--accent, #6366f1);
+  cursor: pointer;
+}
+
+.road-analysis-correction-table tr.is-selected > th,
+.road-analysis-correction-table tr.is-selected > td {
+  background: rgba(99, 102, 241, 0.10);
+}
+
+.road-correction-selection-box {
+  position: absolute;
+  pointer-events: none;
+  border: 1px solid #6366f1;
+  background: rgba(99, 102, 241, 0.12);
+  z-index: 1;
+}
+
+.road-interval-annotation {
+  margin-top: 16px;
+  padding: 13px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+}
+
+.road-interval-annotation > header,
+.road-interval-selection-toolbar,
+.road-interval-fields,
+.road-interval-annotation-list > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.road-interval-annotation > header {
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 10px;
+}
+
+.road-interval-annotation h4,
+.road-interval-annotation p {
+  margin: 0;
+}
+
+.road-interval-annotation h4 {
+  color: var(--ink);
+  font-size: var(--font-body);
+}
+
+.road-interval-annotation p,
+.road-interval-annotation > header > span {
+  color: var(--ink-3);
+  font-size: var(--font-caption);
+}
+
+.road-interval-map {
+  height: 290px;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+}
+
+.road-interval-map-container {
+  width: 100%;
+  height: 100%;
+}
+
+.road-interval-selection-toolbar {
+  justify-content: space-between;
+  flex-wrap: wrap;
+  margin-top: 9px;
+  color: var(--ink-2);
+  font-size: var(--font-caption);
+}
+
+.road-interval-fields {
+  align-items: flex-end;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
+.road-interval-fields label {
+  display: flex;
+  min-width: 150px;
+  flex: 1 1 170px;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--ink-3);
+  font-size: var(--font-caption);
+}
+
+.road-interval-fields input,
+.road-interval-fields select {
+  min-width: 0;
+  padding: 7px 9px;
+}
+
+.road-interval-annotation-list {
+  display: grid;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.road-interval-annotation-list > div {
+  flex-wrap: wrap;
+  padding: 7px 8px;
+  border-top: 1px solid var(--line);
+  color: var(--ink-2);
+  font-size: var(--font-caption);
+}
+
+.road-interval-annotation-list > div > span:first-child {
+  flex: 1 1 260px;
+}
+
+.statistics-named-road-table {
+  min-width: 720px;
+}
+
+.statistics-named-road-table th:first-child {
+  width: 32%;
+}
+
+.statistics-named-road-table th:nth-child(n+3),
+.statistics-named-road-table td:nth-child(n+3) {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.statistics-route-summary {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.statistics-named-road-table .statistics-route-summary {
+  font-size: var(--font-body);
+  font-weight: 500;
+  color: var(--ink-2);
+}
+
+.statistics-module > div > .statistics-road-filters {
+  margin-bottom: 14px;
+}
+
+.statistics-road-name-details {
+  margin-top: 4px;
+  max-width: 360px;
+  font-size: var(--font-caption);
+  font-weight: 400;
+}
+
+.statistics-road-name-details summary {
+  cursor: pointer;
+  color: var(--ink-3);
+}
+
+.statistics-name-conflict {
+  color: #996013;
+  font-size: var(--font-caption);
+  font-weight: 400;
+}
+
+.statistics-road-name-details p {
+  margin: 6px 0;
+}
+
+.statistics-road-filters .statistics-history-toggle {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+}
+
+.statistics-history-toggle input {
+  width: auto;
+}
+
+.statistics-route-names {
+  display: block;
+  max-width: 360px;
+  margin-top: 3px;
+  color: var(--ink-3);
+  font-size: var(--font-caption);
+  font-weight: 400;
+  line-height: 1.45;
+}
+
+.statistics-table-empty {
+  padding: 22px !important;
+  color: var(--ink-3) !important;
+  text-align: center !important;
+}
+
+.roadbook-statistics {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  margin: 14px 0;
+  background: var(--surface-2);
+  border-color: var(--line);
+  box-shadow: var(--shadow-card);
+}
+
+.roadbook-statistics > summary {
+  padding: 13px 16px;
+  color: var(--ink);
+  font-size: 15px;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.roadbook-statistics[open] > summary {
+  border-bottom: 1px solid var(--line);
+}
+
+.roadbook-statistics > .statistics-road-note {
+  margin: 10px 16px 0;
+}
+
+.roadbook-statistics-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(260px, 0.8fr);
+  gap: 12px;
+  padding: 12px 12px 0;
+}
+
+.roadbook-statistics .statistics-module {
+  margin-bottom: 12px;
+  padding: 13px;
+}
+
+.roadbook-statistics > .statistics-module {
+  margin: 0 12px 12px;
+}
+
+.roadbook-classification-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+.roadbook-classification-list > div {
+  display: grid;
+  grid-template-columns: 82px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+}
+
+.roadbook-classification-list dt {
+  color: var(--ink-3);
+  font-size: var(--font-caption);
+}
+
+.roadbook-classification-list dd {
+  min-width: 0;
+  margin: 0;
+}
+
+.roadbook-classification-list .statistics-metric-value small {
+  display: none;
+}
+
+.roadbook-band-label {
+  display: block;
+  margin-top: 2px;
+  color: var(--ink-3);
+  font-size: var(--font-caption);
+}
+
+.roadbook-score-pair {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.roadbook-score-list {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.roadbook-score-list li {
+  display: grid;
+  grid-template-columns: minmax(90px, 1fr) 56px 52px;
+  gap: 8px;
+  color: var(--ink-2);
+  font-size: var(--font-caption);
+}
+
+.roadbook-score-list li strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.roadbook-score-list li > :last-child {
+  color: var(--ink-3);
+  text-align: right;
+}
+
+.roadbook-score-list .is-unrated {
+  color: #92400e;
+}
+
+.statistics-compact-route-scroll {
+  max-height: 330px;
+  overflow: auto;
+}
+
+@media (max-width: 1320px) {
+
+  .statistics-overview {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 860px) {
+
+  .statistics-dashboard-header,
+  .statistics-module-heading,
+  .statistics-module-heading-with-tabs {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .statistics-segmented-control {
+    max-width: none;
+  }
+
+  .statistics-road-search,
+  .statistics-road-search input {
+    width: 100%;
+  }
+
+  .road-analysis-corrections > header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .road-analysis-correction-heading {
+    justify-content: space-between;
+  }
+
+  .road-analysis-correction-selectors {
+    min-width: 0;
+  }
+
+  .roadbook-statistics-grid,
+  .roadbook-score-pair {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 620px) {
+
+  .review-full-page {
+    min-height: 0;
+  }
+
+  .statistics-dashboard {
+    padding-bottom: 18px;
+  }
+
+  .statistics-overview,
+  .statistics-score-summary,
+  .statistics-placeholder-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .statistics-filter-bar label,
+  .statistics-filter-bar select,
+  .statistics-trip-filter select {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .statistics-filter-bar .btn-secondary {
+    width: 100%;
+  }
+
+  .road-analysis-correction-selectors {
+    grid-template-columns: 1fr;
+  }
+
+  .statistics-segmented-control button {
+    flex: 1 1 96px;
+  }
+
+  .statistics-module {
+    padding: 13px;
+  }
+
+  .statistics-cache-note {
+    align-self: flex-start;
+  }
+
+  .roadbook-statistics > .statistics-module {
+    margin-right: 8px;
+    margin-left: 8px;
+  }
+
+  .roadbook-statistics-grid {
+    padding-right: 8px;
+    padding-left: 8px;
+  }
+}
+
+.road-analysis-disclosure > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  list-style: none;
+  cursor: pointer;
+}
+
+.road-analysis-disclosure > summary::-webkit-details-marker {
+  display: none;
+}
+
+.road-analysis-disclosure > summary::before {
+  content: '›';
+  flex: none;
+  color: var(--ink-3);
+  font-size: 20px;
+  line-height: 1;
+  transition: transform 140ms ease;
+}
+
+.road-analysis-disclosure[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+.road-analysis-summary-title {
+  display: grid;
+  flex: 1 1 auto;
+  gap: 2px;
+  min-width: 0;
+}
+
+.road-analysis-summary-title strong {
+  color: var(--ink);
+  font-size: 16px;
+}
+
+.road-analysis-summary-title small {
+  color: var(--ink-3);
+  font-size: var(--font-caption);
+  font-weight: 400;
+}
+
+.road-analysis-status {
+  flex: none;
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: var(--font-caption);
+  line-height: 1.35;
+  white-space: nowrap;
+}
+
+.road-analysis-status.is-idle {
+  background: var(--surface-3);
+  color: var(--ink-3);
+}
+
+.road-analysis-status.is-running {
+  border-color: rgba(99, 102, 241, 0.35);
+  background: var(--primary-soft);
+  color: var(--primary-strong);
+}
+
+.road-analysis-status.is-complete {
+  border-color: rgba(5, 150, 105, 0.3);
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.road-analysis-status.is-failed {
+  border-color: rgba(225, 29, 72, 0.3);
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.road-analysis-disclosure-body {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.road-analysis-disclosure-body > .statistics-module-heading {
+  margin-bottom: 12px;
+}
+
+.road-analysis-disclosure-body > .statistics-module-heading p {
+  margin: 0;
+}
+
+.statistics-trip-table { border-collapse: separate; border-spacing: 0; min-width: 1040px; }
+.statistics-trip-table tr > :first-child { position: sticky; left: 0; z-index: 1; min-width: 160px; max-width: 230px; background: var(--surface); box-shadow: 1px 0 0 var(--line); overflow-wrap: anywhere; }
+.statistics-trip-table thead tr > :first-child { z-index: 2; background: var(--surface-2); }
+.statistics-trip-table .statistics-column-groups th { color: var(--primary-strong); border-bottom: 1px solid var(--line-2); }
+.statistics-cell-details { margin-top: 6px; font-size: var(--font-caption); }
+.statistics-cell-details summary { cursor: pointer; color: var(--ink-3); }
+.statistics-trip-table td { font-variant-numeric: tabular-nums; }
+.statistics-table-wrap:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+.statistics-overview-card .statistics-metric-value > strong { font-size: var(--font-number); }
+.statistics-trip-table tr > :last-child { min-width: 140px; }

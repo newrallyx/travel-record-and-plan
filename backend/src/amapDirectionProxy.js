@@ -15,14 +15,15 @@ async function fetchWithTimeout(targetUrl, timeoutMs) {
   }
 }
 
-export function createDirectionProxyHandler({ amapWebApiKey }) {
+export function createDirectionProxyHandler({ amapWebApiKey, getAmapWebApiKey } = {}) {
   return async function handleDirection(req, res) {
     if (!req.url) {
       res.status(400).json({ ok: false, message: '缺少请求 URL' })
       return
     }
 
-    if (!amapWebApiKey) {
+    const currentAmapWebApiKey = typeof getAmapWebApiKey === 'function' ? getAmapWebApiKey() : amapWebApiKey
+    if (!currentAmapWebApiKey) {
       res.status(500).json({ ok: false, message: 'AMAP_WEB_API_KEY missing' })
       return
     }
@@ -39,10 +40,12 @@ export function createDirectionProxyHandler({ amapWebApiKey }) {
     }
 
     const targetUrl = new URL('https://restapi.amap.com/v3/direction/driving')
-    targetUrl.searchParams.set('key', amapWebApiKey)
+    targetUrl.searchParams.set('key', currentAmapWebApiKey)
     targetUrl.searchParams.set('origin', origin)
     targetUrl.searchParams.set('destination', destination)
     targetUrl.searchParams.set('strategy', strategy)
+    targetUrl.searchParams.set('extensions', 'all')
+    targetUrl.searchParams.set('output', 'json')
     if (waypoints) {
       targetUrl.searchParams.set('waypoints', waypoints.replace(/\|/g, ';'))
     }

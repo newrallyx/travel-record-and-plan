@@ -1,0 +1,68 @@
+{
+  "distance": "17682",
+  "duration": "1342",
+  "tolls": "8.5",
+  "toll_distance": "8200",
+  "strategy": "速度优先",
+  "steps": [
+    {
+      "instruction": "沿G65包茂高速向北行驶5.2公里",
+      "orientation": "北",
+      "road": "G65 包茂高速",
+      "distance": "5200",
+      "tolls": "5",
+      "toll_distance": "5200",
+      "toll_road": "包茂高速",
+      "duration": "360",
+      "polyline": "108.900000,34.200000;108.910000,34.210000;108.920000,34.220000",
+      "action": "直行",
+      "assistant_action": "",
+      "tmcs": [
+        {
+          "distance": "5200",
+          "status": "畅通",
+          "polyline": "108.900000,34.200000;108.920000,34.220000"
+        }
+      ]
+    },
+    {
+      "instruction": "继续沿G65包茂高速行驶3公里",
+      "orientation": "北",
+      "road": "G65 包茂高速",
+      "distance": "3000",
+      "tolls": "3.5",
+      "toll_distance": "3000",
+      "toll_road": "包茂高速",
+      "duration": "210",
+      "polyline": "108.920000,34.220000;108.930000,34.230000;108.940000,34.240000",
+      "action": "直行",
+      "assistant_action": ""
+    },
+    {
+      "instruction": "进入匝道并行驶480米",
+      "orientation": "西北",
+      "road": "",
+      "distance": "480",
+      "tolls": "0",
+      "toll_distance": "0",
+      "toll_road": "",
+      "duration": "92",
+      "polyline": "108.940000,34.240000;108.945000,34.245000",
+      "action": "右转",
+      "assistant_action": "进入匝道"
+    },
+    {
+      "instruction": "沿G210国道向西行驶9.002公里到达终点",
+      "orientation": "西",
+      "road": "G210 国道",
+      "distance": "9002",
+      "tolls": "0",
+      "toll_distance": "0",
+      "toll_road": "",
+      "duration": "680",
+      "polyline": "108.945000,34.245000;108.950000,34.250000;108.960000,34.260000",
+      "action": "到达目的地",
+      "assistant_action": ""
+    }
+  ]
+}

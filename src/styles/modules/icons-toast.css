@@ -1,0 +1,131 @@
+/* ---------- 内联图标 ---------- */
+
+.icon-inline {
+  width: 14px;
+  height: 14px;
+  flex: none;
+}
+
+.top-nav-menu > summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.top-nav-menu-panel > button,
+.backup-import-button,
+.backup-export-button,
+.amap-key-button,
+.trip-editor-launchers button,
+.workspace-tabs button,
+.detail-panel-tabs button,
+.compact-panel-tabs button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.amap-key-warning {
+  display: flex !important;
+  align-items: center;
+  gap: 6px;
+}
+
+.photo-cleanup-warning {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ---------- Toast 轻提示 ---------- */
+
+.toast-host {
+  position: fixed;
+  top: 88px;
+  right: 20px;
+  z-index: 5000;
+  display: grid;
+  gap: 10px;
+  width: min(380px, calc(100vw - 40px));
+  pointer-events: none;
+}
+
+.toast-item {
+  pointer-events: auto;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--toast-surface);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #e2e8f0;
+  font-size: 13px;
+  line-height: 1.55;
+  box-shadow: 0 16px 40px -12px rgba(15, 23, 42, 0.5);
+  backdrop-filter: blur(10px);
+  animation: toast-in 0.24s cubic-bezier(0.2, 0.7, 0.3, 1) both;
+}
+
+.toast-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin-top: 5px;
+  border-radius: 50%;
+  background: var(--success);
+  box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.25);
+}
+
+.toast-info .toast-dot {
+  background: var(--primary);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.3);
+}
+
+.toast-warning .toast-dot {
+  background: var(--warning);
+  box-shadow: 0 0 0 3px rgba(217, 119, 6, 0.3);
+}
+
+.toast-error .toast-dot {
+  background: var(--danger);
+  box-shadow: 0 0 0 3px rgba(225, 29, 72, 0.3);
+}
+
+.toast-message {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.toast-close {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: #94a3b8;
+  font-size: 16px;
+  line-height: 1;
+  border-radius: 6px;
+}
+
+.toast-close:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+
+@keyframes toast-in {
+
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}

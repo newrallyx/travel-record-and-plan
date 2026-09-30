@@ -1,4 +1,13 @@
-node_modules/
+﻿node_modules/
 dist/
+/release*/
+.codex-*.log
 .env.local
 *.zip
+*.tsbuildinfo
+/vite.config.js
+/vite.config.d.ts
+/backup/
+release/
+.playwright-cli/
+/output/

@@ -1,0 +1,32 @@
+{
+  "appId": "com.local.roadtrip-retrospective-tool.p0-fixes-test",
+  "productName": "旅行轨迹记录与规划工具-P0修复测试版",
+  "directories": {
+    "output": "release-p0-fixes-test",
+    "buildResources": "build"
+  },
+  "files": [
+    "backend/src/**/*",
+    "dist/**/*",
+    "electron/**/*",
+    "node_modules/**/*",
+    "package.json"
+  ],
+  "asar": true,
+  "extraMetadata": {
+    "name": "roadtrip-retrospective-p0-fixes-test",
+    "productName": "旅行轨迹记录与规划工具-P0修复测试版"
+  },
+  "win": {
+    "icon": "build/icon.ico",
+    "target": [
+      {
+        "target": "portable",
+        "arch": ["x64"]
+      }
+    ]
+  },
+  "portable": {
+    "artifactName": "${productName} ${version}.${ext}"
+  }
+}

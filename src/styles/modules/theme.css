@@ -1,0 +1,139 @@
+@media (prefers-color-scheme: dark) {
+
+  .top-nav-menu-panel {
+    background: rgba(16, 26, 46, 0.96);
+  }
+
+  .top-nav-menu > summary {
+    background: var(--surface);
+  }
+
+  .workspace-tabs button:hover:not(.active),
+  .detail-panel-tabs button:hover:not(.active),
+  .compact-panel-tabs button:hover:not(.active) {
+    background: rgba(148, 163, 184, 0.14);
+  }
+
+  input,
+  select,
+  textarea {
+    color: var(--ink-2);
+  }
+
+  button,
+  .btn-secondary,
+  .route-color-mode-option,
+  .trip-action-menu > summary,
+  .trip-edit-button,
+  .trip-manage-item,
+  .trip-placeholder-item,
+  .detail-collapsible,
+  .segment-score-row,
+  .photo-candidate-card,
+  .photo-cluster-popup-content button {
+    background: var(--surface);
+  }
+
+  .map-section-with-toolbar,
+  .confirm-dialog,
+  .amap-key-dialog,
+  .photo-viewer-dialog,
+  .photo-viewer-header,
+  .photo-viewer-footer,
+  .photo-candidate-picker-header,
+  .photo-candidate-picker-footer {
+    background: var(--surface);
+  }
+
+  .photo-viewer-sidebar,
+  .segment-detail-readonly-grid > div,
+  .photo-library-summary {
+    background: var(--surface-2);
+  }
+
+  .photo-library-health-grid span {
+    background: rgba(148, 163, 184, 0.12);
+  }
+
+  .autocomplete-dropdown,
+  .map-score-legend {
+    background: rgba(13, 21, 36, 0.94);
+  }
+
+  .autocomplete-item {
+    border-bottom-color: rgba(148, 163, 184, 0.14);
+  }
+
+  .empty-state {
+    background: rgba(15, 23, 42, 0.5);
+    border-color: rgba(148, 163, 184, 0.22);
+  }
+
+  .shimmer {
+    background: #1a2438;
+  }
+
+  .map-loading-overlay {
+    background: rgba(11, 17, 32, 0.66);
+  }
+
+  .backup-import-button {
+    color: var(--primary-strong);
+    border-color: rgba(165, 180, 252, 0.45);
+  }
+
+  .backup-export-button {
+    color: var(--success);
+    background: var(--success-soft);
+    border-color: rgba(52, 211, 153, 0.35);
+  }
+
+  .backup-export-button:hover:not(:disabled) {
+    background: rgba(5, 150, 105, 0.26);
+  }
+
+  .amap-key-button:hover:not(:disabled) {
+    background: rgba(217, 119, 6, 0.26);
+  }
+
+  .amap-key-button.configured:hover:not(:disabled) {
+    background: rgba(5, 150, 105, 0.26);
+  }
+
+  .creation-success {
+    color: var(--success);
+  }
+
+  .trip-storage-warning button {
+    background: rgba(217, 119, 6, 0.16);
+    color: var(--warning);
+  }
+
+  .photo-scan-issues {
+    background: var(--warning-soft);
+  }
+
+  .leaflet-control-zoom a {
+    background: rgba(13, 21, 36, 0.92) !important;
+    color: var(--ink-2) !important;
+  }
+
+  .leaflet-control-zoom a:hover {
+    background: var(--primary-soft) !important;
+    color: var(--primary-strong) !important;
+  }
+
+  .leaflet-control-attribution {
+    background: rgba(13, 21, 36, 0.66) !important;
+    color: var(--ink-3) !important;
+  }
+
+  .leaflet-popup-content-wrapper {
+    background: var(--surface);
+    color: var(--ink-2);
+  }
+}
+
+/* ============================================================
+   v0.2.3 · 拖拽反馈 / 查看器图标 / 帮助弹窗 / 深色标题栏
+   ============================================================ */

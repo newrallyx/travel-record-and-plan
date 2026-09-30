@@ -121,6 +121,7 @@ async function fetchWithTimeout(fetchImpl, url, timeoutMs) {
 export function createInputTipsProxyHandler(options) {
   const {
     amapKey,
+    getAmapKey,
     fetchImpl = fetch,
     now = () => Date.now(),
     cache = new LruTtlCache(options?.maxCacheEntries ?? DEFAULTS.maxCacheEntries, options?.cacheTtlMs ?? DEFAULTS.cacheTtlMs, now),
@@ -132,7 +133,8 @@ export function createInputTipsProxyHandler(options) {
 
   return async function inputTipsProxy(req, res) {
     if (!req.url) return writeJson(res, 400, { ok: false, data: [], cached: false, reason: 'INVALID_URL' })
-    if (!amapKey) {
+    const currentAmapKey = typeof getAmapKey === 'function' ? getAmapKey() : amapKey
+    if (!currentAmapKey) {
       return writeJson(res, 500, { ok: false, data: [], cached: false, reason: 'NO_AMAP_WEB_API_KEY' })
     }
 
@@ -184,7 +186,7 @@ export function createInputTipsProxyHandler(options) {
     if (cached) return writeJson(res, 200, { ok: true, data: cached, cached: true })
 
     const targetUrl = new URL(INPUT_TIPS_URL)
-    targetUrl.searchParams.set('key', amapKey)
+    targetUrl.searchParams.set('key', currentAmapKey)
     targetUrl.searchParams.set('keywords', keywords)
     targetUrl.searchParams.set('datatype', datatype)
     targetUrl.searchParams.set('output', 'json')

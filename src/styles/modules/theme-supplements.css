@@ -1,0 +1,113 @@
+/* ---------- 深色模式补充（0.4.x）：修复遗漏的浅色硬编码 ---------- */
+
+@media (prefers-color-scheme: dark) {
+
+  .readonly-banner {
+    color: #fbbf24;
+    background: rgba(217, 119, 6, 0.16);
+    border-color: rgba(217, 119, 6, 0.35);
+  }
+
+  .amap-key-warning {
+    color: #fbbf24 !important;
+  }
+
+  .trip-storage-warning {
+    color: #fdba74;
+  }
+
+  .trip-storage-warning button {
+    border-color: rgba(217, 119, 6, 0.35);
+  }
+
+  .photo-cleanup-warning {
+    color: #fda4af;
+  }
+
+  .edit-mode-tabs {
+    background: rgba(148, 163, 184, 0.14);
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.35);
+  }
+
+  .edit-mode-tabs button:hover:not(.active) {
+    background: rgba(148, 163, 184, 0.14);
+  }
+
+  .roadbook-submode-bar button:hover:not(.active) {
+    background: rgba(148, 163, 184, 0.14);
+  }
+
+  .statistics-cache-note,
+  .statistics-module-placeholder > .statistics-module-heading > span {
+    background: rgba(245, 158, 11, 0.16);
+    color: #fbbf24;
+  }
+
+  .statistics-empty-state {
+    background: rgba(99, 102, 241, 0.1);
+    border-color: rgba(129, 140, 248, 0.35);
+  }
+
+  .roadbook-statistics,
+  .roadbook-statistics[open] > summary {
+    border-color: rgba(148, 163, 184, 0.14);
+  }
+
+  .statistics-road-search input {
+    border-color: rgba(148, 163, 184, 0.24);
+  }
+
+  .roadbook-score-list .is-unrated {
+    color: #fbbf24;
+  }
+
+  .statistics-segmented-control {
+    background: rgba(148, 163, 184, 0.14);
+  }
+
+  .statistics-segmented-control button:hover:not(.active) {
+    background: rgba(148, 163, 184, 0.14);
+  }
+
+  .statistics-segmented-control button.active {
+    background: var(--surface);
+  }
+
+  .statistics-table-wrap {
+    border-color: rgba(148, 163, 184, 0.14);
+  }
+
+  .statistics-table th,
+  .statistics-table td {
+    border-bottom-color: rgba(148, 163, 184, 0.12);
+  }
+
+  .statistics-table tbody tr:hover:not(.statistics-pending-row) {
+    background: rgba(99, 102, 241, 0.12);
+  }
+
+  .statistics-pending-row {
+    background: rgba(245, 158, 11, 0.1);
+  }
+
+  .statistics-pending-row th,
+  .statistics-pending-row td,
+  .statistics-metric-value.is-partial strong {
+    color: #fbbf24;
+  }
+
+  .statistics-completeness-badge.complete {
+    color: #6ee7b7;
+    background: rgba(16, 185, 129, 0.16);
+  }
+
+  .statistics-completeness-badge.partial {
+    color: #fbbf24;
+    background: rgba(245, 158, 11, 0.16);
+  }
+
+  .statistics-completeness-badge.missing {
+    color: #cbd5e1;
+    background: rgba(148, 163, 184, 0.18);
+  }
+}

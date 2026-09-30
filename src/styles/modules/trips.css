@@ -1,0 +1,320 @@
+/* ---------- 路段 / 途经点列表 ---------- */
+
+.route-list,
+.waypoint-list {
+  list-style: none;
+  padding: 0;
+  margin: 10px 0;
+  display: grid;
+  gap: 8px;
+}
+
+.route-list li,
+.waypoint-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.route-list li.active {
+  background: var(--primary-softer);
+  border: 1px solid rgba(165, 180, 252, 0.5);
+  border-left: 3px solid var(--primary);
+  border-radius: 10px;
+  padding: 8px 10px;
+}
+
+.waypoint-section {
+  margin-top: 12px;
+  display: grid;
+  gap: 8px;
+}
+
+.endpoint-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.endpoint-grid > div {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+}
+
+.endpoint-section {
+  margin-top: 12px;
+  display: grid;
+  gap: 8px;
+}
+
+.endpoint-readonly-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.endpoint-readonly-card {
+  border: 1px solid rgba(165, 180, 252, 0.45);
+  border-radius: 10px;
+  background: var(--primary-softer);
+  padding: 9px 10px;
+  display: grid;
+  gap: 3px;
+}
+
+.endpoint-readonly-card small {
+  color: var(--ink-3);
+  font-size: var(--font-caption);
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+
+.endpoint-readonly-card strong {
+  color: var(--ink);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.endpoint-readonly-card span {
+  color: var(--ink-3);
+  font-size: var(--font-caption);
+}
+
+.waypoint-actions,
+.waypoint-buttons {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.waypoint-item {
+  align-items: flex-start !important;
+}
+
+.waypoint-item > span:first-child {
+  flex: none;
+  display: grid;
+  place-items: center;
+  min-width: 26px;
+  height: 26px;
+  padding: 0 6px;
+  margin-top: 2px;
+  border-radius: 999px;
+  background: var(--surface-3);
+  color: var(--ink-3);
+  font-size: var(--font-caption);
+  font-weight: 700;
+}
+
+.waypoint-item .autocomplete-field {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+
+/* ---------- 旅程管理 ---------- */
+
+.sidebar-manage-panel {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sidebar-manage-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.sidebar-manage-header h2 {
+  margin: 0;
+}
+
+.trip-manage-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  list-style: none;
+  margin: 0;
+  padding: 0 3px 0 0;
+  display: grid;
+  gap: 10px;
+  align-content: start;
+}
+
+.trip-manage-item {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px;
+  background: var(--surface);
+  display: grid;
+  gap: 8px;
+  box-shadow: 0 1px 3px rgba(16, 24, 40, 0.04);
+  transition: box-shadow 160ms ease, border-color 160ms ease, transform 160ms ease;
+}
+
+.trip-manage-item:hover {
+  border-color: rgba(99, 102, 241, 0.3);
+  box-shadow: var(--shadow-card-hover);
+}
+
+.trip-manage-item[draggable='true'] {
+  cursor: grab;
+}
+
+.trip-manage-item[draggable='true']:active {
+  cursor: grabbing;
+}
+
+.trip-main-meta {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.trip-main-meta strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 14.5px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trip-main-meta small {
+  color: var(--ink-3);
+  font-size: var(--font-caption);
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.trip-item-actions {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.trip-item-actions button {
+  flex: 0 0 auto;
+}
+
+.trip-manage-actions {
+  align-items: flex-start;
+}
+
+.trip-manage-actions > button,
+.trip-action-menu > summary {
+  min-height: 34px;
+  padding: 7px 10px;
+}
+
+.trip-edit-button {
+  border-color: var(--line-2);
+  color: var(--ink-2);
+}
+
+.trip-edit-button:hover:not(:disabled) {
+  border-color: var(--line-3);
+  background: var(--surface-3);
+}
+
+.trip-action-menu {
+  min-width: 0;
+}
+
+.trip-action-menu > summary {
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line-2);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--ink-2);
+  cursor: pointer;
+  font-size: var(--font-body);
+  font-weight: 600;
+  line-height: 1.2;
+  list-style: none;
+  user-select: none;
+}
+
+.trip-action-menu > summary::-webkit-details-marker {
+  display: none;
+}
+
+.trip-action-menu > summary::after {
+  content: '▾';
+  margin-left: 5px;
+  color: var(--ink-3);
+  font-size: 10px;
+}
+
+.trip-action-menu[open] {
+  flex: 1 0 100%;
+}
+
+.trip-action-menu[open] > summary {
+  width: fit-content;
+  border-color: var(--primary-line);
+  background: var(--primary-soft);
+  color: var(--primary-strong);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+.trip-action-menu-panel {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  padding-top: 8px;
+  animation: pop-in 0.14s ease both;
+}
+
+.trip-action-menu-panel button {
+  width: 100%;
+}
+
+.trip-more-menu .trip-action-menu-panel {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.trip-placeholder-list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.trip-placeholder-item {
+  min-width: 0;
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: 0 1px 3px rgba(16, 24, 40, 0.04);
+  transition: box-shadow 160ms ease, border-color 160ms ease;
+}
+
+.trip-placeholder-item:hover {
+  border-color: rgba(99, 102, 241, 0.3);
+  box-shadow: var(--shadow-card-hover);
+}
+
+.trip-placeholder-item .trip-item-actions {
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+
+.trip-inline-edit {
+  display: grid;
+  gap: 10px;
+}

@@ -1,0 +1,437 @@
+/* ---------- 路书浏览（0.2.8） ---------- */
+
+.roadbook-submode-bar.roadbook-submode-bar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 2px;
+  margin: 0 2px;
+  padding: 3px;
+  align-self: flex-start; background: transparent; border-radius: 0; border-bottom: 1px solid var(--line);
+}
+
+.roadbook-submode-bar.roadbook-submode-bar button {
+  border: none;
+  background: transparent;
+  color: var(--ink-3);
+  padding: 5px 14px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  font-size: var(--font-caption);
+  transition: color 140ms ease, background-color 140ms ease; border-radius: 0; border-bottom: 2px solid transparent; min-height: var(--control-min-height);
+}
+
+.roadbook-submode-bar button:hover:not(.active) {
+  color: var(--ink-2);
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.roadbook-submode-bar.roadbook-submode-bar button.active {
+  color: var(--primary-strong); background: transparent; border-bottom-color: var(--primary); box-shadow: none;
+}
+
+/* 宽屏将复盘导航放在左栏上方，地图和详情利用原先空出的导航行。 */
+
+.workspace-layout.has-review-navigation {
+  grid-template-rows: auto minmax(0, 1fr);
+  row-gap: 6px;
+}
+
+@media (min-width: 1281px) {
+
+  .has-review-navigation > .roadbook-submode-bar {
+    grid-column: 1;
+    grid-row: 1;
+    min-width: 0;
+    margin: 0;
+  }
+
+  .has-review-navigation > .roadbook-submode-bar button {
+    flex: 1;
+    padding-inline: 8px;
+    white-space: nowrap;
+  }
+
+  .has-review-navigation > .sidebar-column {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .has-review-navigation > .map-column {
+    grid-column: 2;
+    grid-row: 1 / 3;
+  }
+
+  .has-review-navigation > .detail-column {
+    grid-column: 3;
+    grid-row: 1 / 3;
+  }
+
+  .has-review-navigation.left-collapsed > .roadbook-submode-bar {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
+
+  .has-review-navigation.left-collapsed > .map-column,
+  .has-review-navigation.left-collapsed > .detail-column {
+    grid-row: 2;
+  }
+}
+
+@media (min-width: 961px) and (max-width: 1280px) {
+
+  .workspace-layout.has-review-navigation {
+    grid-template-rows: auto auto minmax(0, 1fr);
+    grid-template-areas:
+      'review-navigation review-navigation'
+      'compact-tabs map'
+      'compact-panel map';
+  }
+
+  .has-review-navigation > .roadbook-submode-bar {
+    grid-area: review-navigation;
+    justify-self: start;
+  }
+}
+
+@media (max-width: 960px) {
+
+  .workspace-layout.has-review-navigation {
+    grid-template-rows: auto auto auto auto;
+    grid-template-areas: 'review-navigation' 'map' 'detail' 'sidebar';
+  }
+
+  .has-review-navigation > .roadbook-submode-bar {
+    grid-area: review-navigation;
+    justify-self: start;
+  }
+}
+
+.roadbook-view {
+  grid-column: 1 / -1;
+  grid-row: 1 / -1;
+  min-width: 0;
+  min-height: 0;
+  padding: 4px 2px 28px;
+  overflow-y: auto;
+}
+
+.roadbook-view-header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 18px;
+}
+
+.roadbook-view-header h2 {
+  margin: 0;
+  font-size: 20px;
+  color: var(--ink);
+}
+
+.roadbook-library-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr));
+  gap: 16px;
+}
+
+.roadbook-card {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  transition: transform 140ms ease, box-shadow 140ms ease;
+  border-radius: var(--radius-lg);
+  border-color: var(--line);
+  box-shadow: var(--shadow-card);
+}
+
+.roadbook-card:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-card-hover);
+}
+
+.roadbook-cover {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  height: auto;
+  aspect-ratio: 16 / 9;
+  flex: none;
+  background: var(--surface-3);
+}
+
+.roadbook-cover-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--line-2);
+  background: var(--surface);
+  color: var(--primary);
+  box-shadow: none;
+}
+
+.roadbook-cover-mark .icon-inline {
+  width: 22px;
+  height: 22px;
+}
+
+.roadbook-card-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  gap: 10px;
+  padding: 18px;
+}
+
+.roadbook-card-title {
+  margin: 0;
+  font-size: 18px;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  min-height: 2.8em;
+  white-space: normal;
+  line-height: 1.4;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.roadbook-card-dates {
+  margin: 0;
+  font-size: var(--font-caption);
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
+.roadbook-card-meta {
+  margin: 0;
+  font-size: var(--font-caption);
+  line-height: 1.5;
+  color: var(--ink-2);
+  min-height: 3em;
+  overflow-wrap: anywhere;
+}
+
+.roadbook-card-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+/* ---------- 单次旅程路书页 ---------- */
+
+.roadbook-trip-page {
+  width: 100%;
+  max-width: 1200px;
+  margin-inline: auto;
+}
+
+.roadbook-trip-header {
+  padding: 12px 0 16px;
+  border-bottom: 1px solid var(--line);
+  overflow-wrap: anywhere;
+}
+
+.roadbook-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.roadbook-trip-header h2 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 26px;
+  line-height: 1.3;
+}
+
+.roadbook-trip-dates {
+  margin: 4px 0 0;
+  color: var(--ink-3);
+  font-size: 13px;
+}
+
+.roadbook-stats-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 8px;
+  margin: 14px 0;
+}
+
+.roadbook-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  background: var(--surface);
+  border-color: var(--line);
+  padding: 9px 11px;
+}
+
+.roadbook-stat small {
+  color: var(--ink-3);
+  font-size: var(--font-caption);
+}
+
+.roadbook-stat strong {
+  color: var(--ink);
+  font-size: var(--font-body);
+  font-variant-numeric: tabular-nums;
+}
+
+.roadbook-summary {
+  margin: 0 0 16px;
+  padding: 10px 14px;
+  border-left: 3px solid var(--primary);
+  border-radius: 0 10px 10px 0;
+  background: var(--primary-softer);
+  color: var(--ink-2);
+  font-size: var(--font-body);
+  line-height: 1.7;
+}
+
+.roadbook-overview-map {
+  display: flex;
+  flex-direction: column;
+  margin: 0 0 22px;
+  height: clamp(280px, 40vh, 420px);
+  margin-bottom: 18px;
+}
+
+.roadbook-overview-map h3 {
+  margin: 0 0 8px;
+  font-size: 15px;
+  color: var(--ink);
+}
+
+.roadbook-day {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  margin-bottom: 14px;
+  padding: 18px;
+  border-color: var(--line);
+  box-shadow: var(--shadow-card);
+}
+
+.roadbook-day-header {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin-bottom: 10px;
+}
+
+.roadbook-day-header h3 {
+  margin: 0;
+  font-size: 15px;
+  color: var(--primary-strong);
+}
+
+.roadbook-day-date {
+  color: var(--ink-2);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.roadbook-day-stats {
+  margin-left: auto;
+  color: var(--ink-3);
+  font-size: var(--font-caption);
+}
+
+.roadbook-segment-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.roadbook-segment {
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+}
+
+.roadbook-segment-row {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+
+.roadbook-segment-row strong {
+  color: var(--ink);
+  font-size: var(--font-body);
+}
+
+.roadbook-segment-route {
+  color: var(--ink-2);
+  font-size: 13px;
+}
+
+.roadbook-segment-meta {
+  margin-left: auto;
+  color: var(--ink-3);
+  font-size: var(--font-caption);
+  white-space: nowrap;
+}
+
+.roadbook-segment-note {
+  margin: 8px 0 0;
+  color: var(--ink-2);
+  font-size: var(--font-body);
+  line-height: 1.85;
+  overflow-wrap: anywhere;
+}
+
+.roadbook-photo-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.roadbook-photos-unavailable {
+  margin-top: 14px;
+}
+
+.roadbook-cover.is-placeholder {
+  background: var(--primary-soft);
+}
+
+@media (max-width: 760px) {
+
+  .roadbook-library-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 520px) {
+
+  .roadbook-library-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

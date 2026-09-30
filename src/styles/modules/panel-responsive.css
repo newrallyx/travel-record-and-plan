@@ -1,0 +1,44 @@
+/* 窄屏下强制恢复展开态 */
+
+@media (max-width: 1280px) {
+
+  .workspace-layout.left-collapsed,
+  .workspace-layout.right-collapsed,
+  .workspace-layout.left-collapsed.right-collapsed {
+    grid-template-columns: minmax(320px, 380px) minmax(0, 1fr);
+  }
+
+  .panel-topbar,
+  .panel-rail-btn {
+    display: none !important;
+  }
+
+  [data-collapsed='true'] .panel-body {
+    display: grid !important;
+  }
+
+  [data-collapsed='true'] .detail-panel-tabs {
+    display: none !important;
+  }
+
+  .detail-anchor-nav {
+    top: 0;
+  }
+}
+
+@media (max-width: 960px) {
+
+  .workspace-layout.left-collapsed,
+  .workspace-layout.right-collapsed,
+  .workspace-layout.left-collapsed.right-collapsed {
+    grid-template-columns: 1fr;
+  }
+
+  [data-collapsed='true'] .panel-body {
+    display: grid !important;
+  }
+
+  [data-collapsed='true'] .detail-panel-tabs {
+    display: grid !important;
+  }
+}

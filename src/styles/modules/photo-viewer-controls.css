@@ -1,0 +1,110 @@
+/* ---------- 照片查看器：悬浮箭头 + 胶片条 ---------- */
+
+.photo-viewer-stage {
+  position: relative;
+}
+
+.photo-viewer-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 12;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 50%;
+  background: rgba(10, 14, 26, 0.55);
+  color: #e2e8f0;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(8px);
+  opacity: 0;
+  transition: opacity 160ms ease, background-color 140ms ease;
+}
+
+.photo-viewer-stage:hover .photo-viewer-nav {
+  opacity: 1;
+}
+
+.photo-viewer-nav:hover:not(:disabled) {
+  background: rgba(79, 70, 229, 0.85);
+  color: #ffffff;
+  border-color: transparent;
+}
+
+.photo-viewer-nav:disabled {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.photo-viewer-nav-prev {
+  left: 16px;
+}
+
+.photo-viewer-nav-next {
+  right: 16px;
+}
+
+.photo-viewer-nav .icon-inline {
+  width: 20px;
+  height: 20px;
+}
+
+.photo-film-strip {
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 14px;
+  z-index: 11;
+  padding: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  background: rgba(10, 14, 26, 0.55);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 10px 30px -8px rgba(0, 0, 0, 0.4);
+}
+
+.photo-film-track {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 2px 2px 6px;
+}
+
+.photo-film-item {
+  flex: none;
+  width: 64px;
+  height: 48px;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  overflow: hidden;
+  background: transparent;
+  transition: border-color 140ms ease, transform 140ms ease;
+}
+
+.photo-film-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.photo-film-item .shimmer {
+  width: 100%;
+  height: 100%;
+  display: block;
+  border-radius: 0;
+}
+
+.photo-film-item:hover:not(.selected) {
+  border-color: rgba(255, 255, 255, 0.45);
+  transform: translateY(-1px);
+}
+
+.photo-film-item.selected {
+  border-color: #fbbf24;
+  box-shadow: 0 0 0 2px rgba(251, 191, 36, 0.3);
+}
