@@ -68,16 +68,32 @@ export function useRoadbookPhotos(trip: Trip | null) {
 export function useRoadbookLibraryPhotos(trips: Trip[]) {
   const desktopAvailable = Boolean(window.roadtripDesktop?.photoLibrary)
   const [coverByTrip, setCoverByTrip] = useState<Map<string, LinkedPhotoRecord>>(new Map())
+  const [photosByTrip, setPhotosByTrip] = useState<Map<string, LinkedPhotoRecord[]>>(new Map())
+  const [loadError, setLoadError] = useState('')
+  const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
     if (!desktopAvailable) {
       setCoverByTrip(new Map())
+      setPhotosByTrip(new Map())
+      setIsLoading(false)
       return
     }
     let cancelled = false
 
     async function loadCovers() {
-      const allPhotos = await electronPhotoRepository.listPhotos().catch(() => [] as LinkedPhotoRecord[])
+      setIsLoading(true)
+      setLoadError('')
+      let allPhotos: LinkedPhotoRecord[]
+      try {
+        allPhotos = await electronPhotoRepository.listPhotos()
+      } catch {
+        if (!cancelled) {
+          setLoadError('照片列表加载失败，请重新进入书架后重试。')
+          setIsLoading(false)
+        }
+        return
+      }
       if (cancelled) return
       const photoById = new Map(allPhotos.map((photo) => [photo.id, photo]))
       const segmentIdsByTrip = new Map(
@@ -87,9 +103,11 @@ export function useRoadbookLibraryPhotos(trips: Trip[]) {
         ]),
       )
       const next = new Map<string, LinkedPhotoRecord>()
+      const nextPhotos = new Map<string, LinkedPhotoRecord[]>()
 
       for (const trip of trips) {
         const ownSegmentIds = segmentIdsByTrip.get(trip.id)
+        nextPhotos.set(trip.id, allPhotos.filter(photo => ownSegmentIds?.has(photo.segmentId)))
         let candidate: LinkedPhotoRecord | undefined = trip.coverPhotoId
           ? photoById.get(trip.coverPhotoId)
           : undefined
@@ -113,6 +131,8 @@ export function useRoadbookLibraryPhotos(trips: Trip[]) {
         if (candidate) next.set(trip.id, candidate)
       }
       setCoverByTrip(next)
+      setPhotosByTrip(nextPhotos)
+      setIsLoading(false)
     }
 
     void loadCovers()
@@ -121,5 +141,5 @@ export function useRoadbookLibraryPhotos(trips: Trip[]) {
     }
   }, [desktopAvailable, trips])
 
-  return { coverByTrip, desktopAvailable }
+  return { coverByTrip, photosByTrip, desktopAvailable, isLoading, loadError }
 }

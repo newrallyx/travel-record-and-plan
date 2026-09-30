@@ -4,6 +4,7 @@ import type { RouteSegment } from '../../types/trip.ts'
 import type { ManualRoadIntervalAnnotation, RoadClass } from '../../types/roadStatistics.ts'
 import type { RouteCacheRecord, ManualRoadIntervalAnnotationInput } from '../../services/routeCacheDb.ts'
 import { ROAD_CLASS_LABELS } from '../../config/roadStatistics.ts'
+import { getRenderableRoadParts, roadTypeColorForClass } from '../map/roadTypeVisualization.ts'
 import { isProvinceSensitiveRoadPart, PROVINCE_OPTIONS } from '../../utils/province.ts'
 import { saveManualRoadIntervalAnnotation, revokeManualRoadIntervalAnnotation } from '../../services/routeCacheDb.ts'
 
@@ -45,9 +46,14 @@ function intervalLabel(annotation: ManualRoadIntervalAnnotation): string {
 export default function RoadIntervalAnnotationPanel({ segment, cache, disabled, onCacheChange, onReload }: Props) {
   const points = cache?.points?.length ? cache.points : segment?.points ?? []
   const line = useMemo(() => points.map((point) => [point.lat, point.lon] as [number, number]), [points])
+  const roadParts = useMemo(() => getRenderableRoadParts(cache?.roadParts, {
+    isOverviewMode: false,
+    maximumPoints: Number.POSITIVE_INFINITY,
+  }), [cache?.roadParts])
   const [startPointIndex, setStartPointIndex] = useState<number | null>(null)
   const [endPointIndex, setEndPointIndex] = useState<number | null>(null)
   const [roadClass, setRoadClass] = useState<RoadClass>('PROVINCIAL_ROAD')
+  const [manualDirection, setManualDirection] = useState('')
   const [routeRef, setRouteRef] = useState('')
   const [provinceCode, setProvinceCode] = useState('')
   const [editingId, setEditingId] = useState<string | undefined>()
@@ -65,6 +71,7 @@ export default function RoadIntervalAnnotationPanel({ segment, cache, disabled, 
     setStartPointIndex(null)
     setEndPointIndex(null)
     setRouteRef('')
+    setManualDirection('')
     setProvinceCode('')
     setEditingId(undefined)
   }
@@ -85,6 +92,7 @@ export default function RoadIntervalAnnotationPanel({ segment, cache, disabled, 
     setEndPointIndex(annotation.endPointIndex)
     setRoadClass(annotation.roadClass)
     setRouteRef(annotation.routeRef ?? '')
+    setManualDirection(annotation.manualDirection ?? '')
     setProvinceCode(annotation.provinceCode ?? '')
   }
 
@@ -98,6 +106,7 @@ export default function RoadIntervalAnnotationPanel({ segment, cache, disabled, 
       endPointIndex: activeRange[1],
       roadClass,
       routeRef,
+      manualDirection: manualDirection || undefined,
       provinceCode,
       annotationId: editingId,
     }
@@ -145,12 +154,22 @@ export default function RoadIntervalAnnotationPanel({ segment, cache, disabled, 
               <FitTrack points={line} />
               <Polyline
                 positions={line}
-                pathOptions={{ color: '#64748b', weight: 5, opacity: 0.65 }}
+                pathOptions={{ color: roadTypeColorForClass('UNKNOWN'), weight: 5, opacity: 0.65 }}
                 eventHandlers={{ click: (event: any) => selectFromMap(nearestPointIndex(line, event.latlng.lat, event.latlng.lng)) }}
               />
-              {previewLine.length >= 2 && <Polyline positions={previewLine} pathOptions={{ color: '#e11d48', weight: 8, opacity: 0.9 }} />}
-              {startPointIndex !== null && <CircleMarker center={line[startPointIndex]} radius={7} pathOptions={{ color: '#16a34a', fillColor: '#16a34a', fillOpacity: 1 }} />}
-              {endPointIndex !== null && <CircleMarker center={line[endPointIndex]} radius={7} pathOptions={{ color: '#e11d48', fillColor: '#e11d48', fillOpacity: 1 }} />}
+              {roadParts.map((part) => <Polyline
+                key={part.sourceIndex}
+                positions={part.positions}
+                pathOptions={{ color: roadTypeColorForClass(part.roadClass), weight: 5, opacity: 0.9 }}
+                eventHandlers={{ click: (event: any) => selectFromMap(nearestPointIndex(line, event.latlng.lat, event.latlng.lng)) }}
+              />)}
+              {previewLine.length >= 2 && <Polyline
+                positions={previewLine}
+                pathOptions={{ color: roadTypeColorForClass(roadClass), weight: 8, opacity: 0.9, dashArray: '10 6' }}
+                interactive={false}
+              />}
+              {startPointIndex !== null && <CircleMarker center={line[activeRange ? activeRange[0] : startPointIndex]} radius={7} pathOptions={{ color: '#16a34a', fillColor: '#16a34a', fillOpacity: 1 }} />}
+              {activeRange !== null && <CircleMarker center={line[activeRange[1]]} radius={7} pathOptions={{ color: '#e11d48', fillColor: '#e11d48', fillOpacity: 1 }} />}
             </MapContainer>
           </div>
           <div className="road-interval-selection-toolbar">
@@ -159,11 +178,11 @@ export default function RoadIntervalAnnotationPanel({ segment, cache, disabled, 
             <button type="button" className="btn-secondary" disabled={disabled || saving} onClick={resetForm}>清除选择</button>
           </div>
           <div className="road-interval-fields">
-            <label><span>道路类型</span><select value={roadClass} disabled={disabled || saving} onChange={(event) => setRoadClass(event.target.value as RoadClass)}>
+            <label><span>道路类型</span><select value={roadClass} disabled={disabled || saving} onChange={(event) => { setRoadClass(event.target.value as RoadClass); setManualDirection('') }}>
               {ROAD_CLASS_OPTIONS.map((value) => <option key={value} value={value}>{ROAD_CLASS_LABELS[value]}</option>)}
             </select></label>
-            <label><span>道路编号</span><input value={routeRef} disabled={disabled || saving} placeholder="如 S101" onChange={(event) => setRouteRef(event.target.value)} /></label>
-            <label><span>省份{provinceRequired ? '（必选）' : ''}</span><select value={provinceCode} disabled={disabled || saving || !provinceRequired} onChange={(event) => setProvinceCode(event.target.value)}>
+            <label><span>道路编号</span><input value={routeRef} disabled={disabled || saving} placeholder="如 S101" onChange={(event) => { setRouteRef(event.target.value); setManualDirection('') }} /></label>
+            <label><span>省份{provinceRequired ? '（必选）' : ''}</span><select value={provinceCode} disabled={disabled || saving || !provinceRequired} onChange={(event) => { setProvinceCode(event.target.value); setManualDirection('') }}>
               <option value="">{provinceRequired ? '请选择' : '不适用'}</option>
               {PROVINCE_OPTIONS.map((province) => <option key={province.code} value={province.code}>{province.name}</option>)}
             </select></label>

@@ -175,3 +175,26 @@ test('province and manual annotation fields survive backup round-trip', () => {
   assert.equal(restored.segmentRoutes[0].roadParts[0].provinceCode, '610000')
   assert.equal(restored.segmentRoutes[0].manualRoadAnnotations[0].provinceStatus, 'confirmed')
 })
+
+
+test('manual direction survives cache and backup, rejects wrong endpoints, and returns to automatic', async () => {
+  const segment = createSegment()
+  const input = {segment, startPointIndex:0, endPointIndex:4, roadClass:'EXPRESSWAY', routeRef:'G22', manualDirection:'兰州'}
+  const annotation = await saveManualRoadIntervalAnnotation(input)
+  const cache = await getSegmentRouteCache(segment.id)
+  assert.equal(cache.manualRoadAnnotations[0].manualDirection, '兰州')
+  assert.ok(cache.roadParts.every(p => p.manualDirection === '兰州'))
+  assert.deepEqual(cache.points, segment.points)
+  assert.equal(cache.roadParts.reduce((n,p) => n + p.distanceMeters, 0), 1000)
+  const tripReview = {trips:[{id:'r',title:'备份',category:'review',startDate:'2026-01-01',endDate:'2026-01-01',days:[{id:'d',date:'2026-01-01',routeSegments:[segment]}]}]}
+  const restored = parseTripBackupJson(JSON.stringify(buildTripBackupPayload(tripReview, [cache], new Date())))
+  assert.equal(restored.segmentRoutes[0].manualRoadAnnotations[0].manualDirection, '兰州')
+  assert.equal(restored.segmentRoutes[0].roadParts[0].manualDirection, '兰州')
+  await assert.rejects(saveManualRoadIntervalAnnotation({...input, annotationId:annotation.id, manualDirection:'西安'}), /不匹配/)
+  await saveManualRoadIntervalAnnotation({...input, annotationId:annotation.id, manualDirection:'pending'})
+  assert.equal((await getSegmentRouteCache(segment.id)).roadParts[0].manualDirection, 'pending')
+  await saveManualRoadIntervalAnnotation({...input, annotationId:annotation.id, manualDirection:undefined})
+  assert.ok((await getSegmentRouteCache(segment.id)).roadParts.every(p => !p.manualDirection))
+  await revokeManualRoadIntervalAnnotation(segment.id, annotation.id)
+  assert.ok(!(await getSegmentRouteCache(segment.id)).manualRoadAnnotations?.length)
+})

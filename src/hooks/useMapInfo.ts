@@ -45,20 +45,19 @@ export function useMapInfo({
     const mapTollText = formatTollSummary(summarizeEstimatedTolls(tollSegments))
     const mapDurationText = formatDurationSummary(summarizeEstimatedDurations(tollSegments))
 
-    if (activeSegment) {
-      return {
-        summary: `${activeSegment.name} · ${activeSegmentDate || dateLabel} · 路段数 ${mapRenderSegments.length} · 距离 ${mapDistanceText} · 预计行驶时间 ${mapDurationText} · 预估过路费 ${mapTollText} · 缓存状态 ${cacheStatus}`,
-      }
-    }
-
-    if (isAllTripsSelected) {
-      return {
-        summary: `全部路线 · ${dateLabel} · 路段数 ${mapRenderSegments.length} · 距离 ${mapDistanceText} · 预计行驶时间 ${mapDurationText} · 预估过路费 ${mapTollText} · 缓存状态 ${cacheStatus}`,
-      }
-    }
-
+    const title = activeSegment?.name ?? (isAllTripsSelected
+      ? filters.year ? filters.year === 'unknown' ? '未注明年份路线' : `${filters.year}年全部路线` : '全部路线'
+      : selectedTrip?.title ?? '当前路线')
     return {
-      summary: `${selectedTrip?.title ?? '当前路线'} · ${dateLabel} · 路段数 ${mapRenderSegments.length} · 距离 ${mapDistanceText} · 预计行驶时间 ${mapDurationText} · 预估过路费 ${mapTollText} · 缓存状态 ${cacheStatus}`,
+      title,
+      date: activeSegment ? activeSegmentDate || dateLabel : dateLabel,
+      cacheStatus,
+      metrics: [
+        { label: '路段', value: String(mapRenderSegments.length) },
+        { label: '距离', value: mapDistanceText },
+        { label: '预计行驶', value: mapDurationText },
+        { label: '预估过路费', value: mapTollText },
+      ],
     }
   }, [
     activeSegment,
@@ -67,6 +66,7 @@ export function useMapInfo({
     filters.dayId,
     filters.segmentId,
     filters.tripId,
+    filters.year,
     isAllTripsSelected,
     mapRenderSegments,
     selectedDay,

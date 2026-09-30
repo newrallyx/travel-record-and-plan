@@ -5,6 +5,14 @@ import type { PhotoCoordinate } from '../../types/photo'
 import type { Waypoint } from '../../types/trip'
 import type { LinkedPhotoRecord } from '../../types/photo'
 
+export function MapZoomController({ onZoomChange }: { onZoomChange: (zoom: number) => void }) {
+  const map = useMapEvents({
+    zoomend: () => onZoomChange(map.getZoom()),
+  })
+  useEffect(() => onZoomChange(map.getZoom()), [map, onZoomChange])
+  return null
+}
+
 export function ViewportController({ points }: { points: LatLngExpression[] }) {
   const map = useMap()
 

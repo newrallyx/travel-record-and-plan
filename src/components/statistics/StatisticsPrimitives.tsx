@@ -15,6 +15,19 @@ export function formatPercentage(value: number | null): string {
   return value === null ? '—' : `${(value * 100).toFixed(1)}%`
 }
 
+/** 仅可视化已有里程占比；未知值不画成零，文字保留原始统计口径。 */
+export function DistanceShare({ value }: { value: number | null }) {
+  const known = value !== null && Number.isFinite(value) && value >= 0 && value <= 1
+  return (
+    <span className="statistics-distance-share">
+      <span>{formatPercentage(value)}</span>
+      {known && <span className="statistics-share-track" aria-hidden="true">
+        <span style={{ width: `${value * 100}%` }} />
+      </span>}
+    </span>
+  )
+}
+
 function formatMetricCompletion(completeness: StatisticsCompleteness): string {
   if (completeness.totalItemCount === 0) return '暂无路段记录'
   if (completeness.notApplicableItemCount === completeness.totalItemCount) return '不适用'

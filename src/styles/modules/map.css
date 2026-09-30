@@ -1,0 +1,193 @@
+/* ---------- 地图面板 ---------- */
+
+.map-panel-wrapper {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: auto;
+  min-height: 0;
+  position: relative;
+}
+
+.map-container {
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  border: 1px solid var(--line);
+}
+
+.leaflet-container {
+  width: 100%;
+  height: 100%;
+  font-family: inherit;
+}
+
+/* Leaflet 控件精致化 */
+
+.leaflet-control-zoom {
+  border: none !important;
+  border-radius: 12px !important;
+  overflow: hidden;
+  box-shadow: 0 4px 16px -4px rgba(15, 23, 42, 0.3);
+}
+
+.leaflet-control-zoom a {
+  border: none !important;
+  color: var(--ink-2) !important;
+  width: 32px !important;
+  height: 32px !important;
+  line-height: 32px !important;
+  background: rgba(255, 255, 255, 0.92) !important;
+  backdrop-filter: blur(8px);
+}
+
+.leaflet-control-zoom a:hover {
+  background: var(--primary-soft) !important;
+  color: var(--primary-strong) !important;
+}
+
+.leaflet-popup-content-wrapper {
+  border-radius: 12px;
+  box-shadow: 0 14px 36px -10px rgba(15, 23, 42, 0.35);
+}
+
+.leaflet-popup-content {
+  margin: 12px 14px;
+  font-family: inherit;
+}
+
+.leaflet-control-attribution {
+  background: rgba(255, 255, 255, 0.66) !important;
+  color: var(--ink-3) !important;
+  font-size: 10px !important;
+  backdrop-filter: blur(4px);
+}
+
+/* ---------- 地图点标 ---------- */
+
+.custom-point-icon-wrapper {
+  background: transparent;
+  border: none;
+}
+
+.custom-point-icon {
+  width: 100%;
+  height: 100%;
+  border-radius: 999px;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--font-caption);
+  font-weight: 700;
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 3px 10px rgba(15, 23, 42, 0.35);
+  transition: transform 120ms ease;
+}
+
+.custom-point-icon:hover {
+  transform: scale(1.12);
+}
+
+.custom-point-icon.start {
+  background: linear-gradient(135deg, #34d399, #059669);
+}
+
+.custom-point-icon.end {
+  background: linear-gradient(135deg, #fb7185, #e11d48);
+}
+
+.custom-point-icon.via {
+  background: var(--primary);
+  font-size: var(--font-body);
+  line-height: 1;
+}
+
+.custom-point-icon.control {
+  background: linear-gradient(135deg, #a78bfa, #7c3aed);
+}
+
+.custom-point-icon.waypoint-selected {
+  background: linear-gradient(135deg, #fbbf24, #f59e0b);
+}
+
+/* ---------- 地点联想 ---------- */
+
+.autocomplete-field {
+  position: relative;
+}
+
+.autocomplete-input-row {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+}
+
+.autocomplete-input-row input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.autocomplete-input-row .tiny-btn {
+  flex: none;
+  white-space: nowrap;
+}
+
+.autocomplete-dropdown {
+  position: absolute;
+  z-index: 1200;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  background: rgba(255, 255, 255, 0.97);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: var(--shadow-pop);
+  max-height: 260px;
+  overflow: auto;
+  backdrop-filter: blur(10px);
+  animation: pop-in 0.14s ease both;
+}
+
+.autocomplete-group-title {
+  padding: 9px 12px 5px;
+  color: var(--ink-3);
+  font-size: var(--font-caption);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.autocomplete-item {
+  width: 100%;
+  text-align: left;
+  padding: 9px 12px;
+  border: 0;
+  border-bottom: 1px solid rgba(228, 233, 242, 0.8);
+  background: transparent;
+  display: grid;
+  gap: 2px;
+  border-radius: 0;
+}
+
+.autocomplete-item:hover:not(:disabled) {
+  background: var(--primary-softer);
+  color: var(--primary-strong);
+}
+
+.autocomplete-item:last-child {
+  border-bottom: 0;
+}
+
+.autocomplete-item small {
+  color: var(--ink-3);
+  font-size: var(--font-caption);
+}
+
+.autocomplete-item.muted {
+  color: var(--ink-3);
+  font-size: 13px;
+}

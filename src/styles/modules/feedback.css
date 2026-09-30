@@ -1,0 +1,119 @@
+/* ---------- 管理旅程面板底部 ---------- */
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.modal-footer button {
+  border-color: transparent;
+  background: var(--primary);
+  color: var(--on-primary);
+  font-weight: 700;
+  padding: 8px 22px;
+  box-shadow: 0 1px 2px rgba(67, 56, 202, 0.2);
+}
+
+.modal-footer button:hover:not(:disabled) {
+  background: var(--primary-strong);
+  color: var(--on-primary);
+}
+
+/* ---------- 动画 ---------- */
+
+@keyframes panel-in {
+
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes pop-in {
+
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes dialog-in {
+
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.97);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes fade-in {
+
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+/* ---------- 手机导航（≤760） ---------- */
+
+@media (max-width: 760px) {
+
+  .top-nav {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+  }
+
+  .top-nav-title-group {
+    grid-column: 1 / -1;
+  }
+
+  .top-nav-primary {
+    justify-self: start;
+  }
+
+  .top-nav-tools {
+    flex-wrap: wrap;
+  }
+
+  .top-nav-notice {
+    max-width: 100%;
+  }
+
+  .photo-library-health-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 420px) {
+
+  .segment-meta-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .trip-placeholder-item .trip-item-actions button {
+    flex: 1 1 calc(50% - 3px);
+  }
+}
+
+/* ============================================================
+   v0.2.1 · 统一对话框 / 面板折叠 / 锚点导航 / 空状态 / 加载反馈
+   ============================================================ */

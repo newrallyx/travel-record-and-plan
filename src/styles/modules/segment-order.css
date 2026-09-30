@@ -1,0 +1,147 @@
+.day-segment-order-panel {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 12px;
+  border: 1px solid rgba(165, 180, 252, 0.55);
+  border-radius: 12px;
+  background: var(--primary-softer);
+}
+
+.day-segment-order-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.day-segment-order-header h3,
+.day-segment-order-header p {
+  margin: 0;
+}
+
+.day-segment-order-header h3 {
+  font-size: var(--font-body);
+  color: var(--ink);
+  letter-spacing: 0.03em;
+}
+
+.day-segment-order-header p {
+  margin-top: 2px;
+  color: var(--ink-3);
+  font-size: var(--font-caption);
+}
+
+.day-segment-order-list {
+  max-height: min(32vh, 320px);
+  overflow-y: auto;
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0 3px 0 0;
+  list-style: none;
+  overscroll-behavior: contain;
+}
+
+.day-segment-order-list li {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  cursor: grab;
+  box-shadow: 0 1px 3px rgba(16, 24, 40, 0.04);
+  transition: border-color 140ms ease, box-shadow 140ms ease, opacity 140ms ease;
+}
+
+.day-segment-order-list li:active {
+  cursor: grabbing;
+}
+
+.day-segment-order-list li:hover {
+  border-color: rgba(99, 102, 241, 0.35);
+}
+
+.day-segment-order-list li.dragging {
+  border-color: var(--primary);
+  opacity: 0.55;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.18);
+}
+
+.day-segment-order-number {
+  display: grid;
+  min-width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--primary-soft);
+  color: var(--primary-strong);
+  font-weight: 700;
+  font-size: var(--font-caption);
+  font-variant-numeric: tabular-nums;
+}
+
+.day-segment-order-meta {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.day-segment-order-meta strong,
+.day-segment-order-meta small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.day-segment-order-meta strong {
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.day-segment-order-meta small {
+  color: var(--ink-3);
+  font-size: var(--font-caption);
+}
+
+.day-segment-order-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.day-segment-order-actions button {
+  white-space: nowrap;
+  padding: 5px 10px;
+  font-size: var(--font-caption);
+}
+
+@container trip-filters (max-width: 619px) {
+
+  .day-segment-order-list li {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .day-segment-order-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-end;
+  }
+}
+
+/* ---------- 地点联想下拉（Portal 版） ---------- */
+
+.autocomplete-dropdown-portal {
+  position: fixed;
+  z-index: 3200;
+  overscroll-behavior: contain;
+}
+
+@media (prefers-color-scheme: dark) {
+
+  .day-segment-order-list li {
+    background: var(--surface);
+  }
+}

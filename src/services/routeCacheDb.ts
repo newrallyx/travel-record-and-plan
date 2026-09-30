@@ -1,3 +1,4 @@
+import { normalizeManualDirection } from '../utils/manualRoadDirection.ts'
 import {
   ROAD_ANALYSIS_SCHEMA_VERSION,
   type ManualRoadIntervalAnnotation,
@@ -36,6 +37,17 @@ export const ROUTE_CACHE_DB_NAME = 'trip-route-cache'
 export const ROUTE_CACHE_DB_VERSION = 2
 export const ROUTE_CACHE_STORE_NAME = 'segmentRoutes'
 
+const routeCacheListeners = new Set<() => void>()
+
+export function subscribeRouteCacheChanges(listener: () => void): () => void {
+  routeCacheListeners.add(listener)
+  return () => { routeCacheListeners.delete(listener) }
+}
+
+function notifyRouteCacheChanged() {
+  for (const listener of routeCacheListeners) listener()
+}
+
 export interface RouteCacheRecord {
   segmentId: string
   routeBuildKey: string
@@ -72,6 +84,7 @@ interface SavePlannedSegmentRouteCacheParams extends SaveSegmentRouteGeometryPar
 }
 
 interface ManualRoadPartCorrection {
+  manualDirection?: string
   roadClass: RoadClass
   routeRef?: string
   provinceCode?: string
@@ -79,6 +92,7 @@ interface ManualRoadPartCorrection {
 }
 
 export interface ManualRoadIntervalAnnotationInput {
+  manualDirection?: string
   segment: RouteSegment
   startPointIndex: number
   endPointIndex: number
@@ -248,6 +262,7 @@ function normalizeRoadPart(value: unknown): RouteRoadPart | undefined {
     ? value.distanceSource as RoadDistanceSource
     : undefined
   const provinceFields = normalizeProvinceFields(value, value.roadClass as RoadClass, routeRef)
+  const manualDirection = normalizeManualDirection(value.manualDirection, value.roadClass as RoadClass, routeRef, provinceFields.provinceCode)
 
   return {
     roadClass: value.roadClass as RoadClass,
@@ -257,6 +272,7 @@ function normalizeRoadPart(value: unknown): RouteRoadPart | undefined {
     source: value.source as RoadClassificationSource,
     ...(roadName ? { roadName } : {}),
     ...(routeRef ? { routeRef } : {}),
+    ...(manualDirection ? { manualDirection } : {}),
     ...(tollRoad ? { tollRoad } : {}),
     ...(instruction ? { instruction } : {}),
     ...(polyline ? { polyline } : {}),
@@ -294,12 +310,14 @@ function normalizeManualRoadAnnotation(value: unknown): ManualRoadIntervalAnnota
     || !distanceSource
   ) return undefined
   const provinceFields = normalizeProvinceFields(value, value.roadClass as RoadClass, routeRef)
+  const manualDirection = normalizeManualDirection(value.manualDirection, value.roadClass as RoadClass, routeRef, provinceFields.provinceCode)
   return {
     id: normalizeOptionalString(value.id) ?? `annotation-${startPointIndex}-${endPointIndex}`,
     startPointIndex,
     endPointIndex,
     roadClass: value.roadClass as RoadClass,
     ...(routeRef ? { routeRef } : {}),
+    ...(manualDirection ? { manualDirection } : {}),
     ...(provinceFields.provinceCode ? { provinceCode: provinceFields.provinceCode } : {}),
     ...(provinceFields.provinceName ? { provinceName: provinceFields.provinceName } : {}),
     ...(provinceFields.provinceSource === 'MANUAL' || provinceFields.provinceSource === 'ESTIMATED_SPLIT'
@@ -445,7 +463,7 @@ async function putCompleteRecord(record: RouteCacheRecord): Promise<void> {
     await new Promise<void>((resolve, reject) => {
       const tx = db.transaction(ROUTE_CACHE_STORE_NAME, 'readwrite')
       tx.objectStore(ROUTE_CACHE_STORE_NAME).put(record)
-      tx.oncomplete = () => resolve()
+      tx.oncomplete = () => { notifyRouteCacheChanged(); resolve() }
       tx.onerror = () => reject(tx.error)
       tx.onabort = () => reject(tx.error)
     })
@@ -507,7 +525,7 @@ export async function saveManualSegmentRouteCache(
           } satisfies RouteCacheRecord)
         }
         request.onerror = () => reject(request.error)
-        tx.oncomplete = () => resolve()
+        tx.oncomplete = () => { notifyRouteCacheChanged(); resolve() }
         tx.onerror = () => reject(tx.error)
         tx.onabort = () => reject(tx.error)
       })
@@ -545,7 +563,7 @@ async function updateExistingRouteCache(
         store.put(next)
       }
       request.onerror = () => reject(request.error)
-      tx.oncomplete = () => resolve()
+      tx.oncomplete = () => { notifyRouteCacheChanged(); resolve() }
       tx.onerror = () => reject(tx.error)
       tx.onabort = () => reject(tx.error ?? new Error('路线缓存事务已取消。'))
     })
@@ -683,6 +701,7 @@ export async function saveManualRoadPartCorrection(
         ...part,
         roadClass: correction.roadClass,
         routeRef: normalizedRef,
+        manualDirection: normalizeManualDirection(correction.manualDirection, correction.roadClass, normalizedRef, provinceCode),
         confidence: 'HIGH' as const,
         source: 'MANUAL' as const,
       }
@@ -748,10 +767,13 @@ export async function saveManualRoadIntervalAnnotation(
   const routeRef = input.routeRef?.trim() ? extractRouteRef(input.routeRef) : undefined
   if (input.routeRef?.trim() && !routeRef) throw new Error('道路编号格式无效，例如应填写 G65、G210 或 S101。')
   const provinceCode = normalizeProvinceCode(input.provinceCode) ?? normalizeProvinceCode(input.provinceName)
+  const manualDirection = normalizeManualDirection(input.manualDirection, input.roadClass, routeRef, provinceCode)
+  if (input.manualDirection && !manualDirection) throw new Error('所选方向与道路编号或类型不匹配。')
   const now = new Date().toISOString()
   const { distanceMeters: totalDistanceMeters, recorded } = getAnnotationDistanceBase(input.segment, cache, points)
   const annotations = [...(cache?.manualRoadAnnotations ?? [])].filter((annotation) => annotation.id !== input.annotationId)
   const annotation: ManualRoadIntervalAnnotation = {
+    ...(manualDirection ? { manualDirection } : {}),
     id: input.annotationId ?? `manual-road-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     startPointIndex: input.startPointIndex,
     endPointIndex: input.endPointIndex,
@@ -929,7 +951,7 @@ export async function deleteSegmentRouteCache(segmentId: string): Promise<void> 
       await new Promise<void>((resolve, reject) => {
         const tx = db.transaction(ROUTE_CACHE_STORE_NAME, 'readwrite')
         tx.objectStore(ROUTE_CACHE_STORE_NAME).delete(segmentId)
-        tx.oncomplete = () => resolve()
+        tx.oncomplete = () => { notifyRouteCacheChanged(); resolve() }
         tx.onerror = () => reject(tx.error)
         tx.onabort = () => reject(tx.error)
       })
@@ -948,7 +970,7 @@ export async function clearAllRouteCache(): Promise<void> {
       await new Promise<void>((resolve, reject) => {
         const tx = db.transaction(ROUTE_CACHE_STORE_NAME, 'readwrite')
         tx.objectStore(ROUTE_CACHE_STORE_NAME).clear()
-        tx.oncomplete = () => resolve()
+        tx.oncomplete = () => { notifyRouteCacheChanged(); resolve() }
         tx.onerror = () => reject(tx.error)
         tx.onabort = () => reject(tx.error)
       })
@@ -970,7 +992,7 @@ export async function replaceAllSegmentRouteCache(records: RouteCacheRecord[]): 
         const store = tx.objectStore(ROUTE_CACHE_STORE_NAME)
         store.clear()
         normalizedRecords.forEach((record) => store.put(record))
-        tx.oncomplete = () => resolve()
+        tx.oncomplete = () => { notifyRouteCacheChanged(); resolve() }
         tx.onerror = () => reject(tx.error)
         tx.onabort = () => reject(tx.error)
       })

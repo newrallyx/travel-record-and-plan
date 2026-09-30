@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useId, useMemo, useState } from 'react'
 import type {
   ScoreDistribution,
   TripStatisticsBreakdown,
@@ -27,7 +27,7 @@ import type { ResolvedRoutePatch } from '../map/types.ts'
 import {
   COMPLETENESS_LABEL,
   formatNullableDistance,
-  formatPercentage,
+  DistanceShare,
   MetricValue,
   OverviewCard,
 } from './StatisticsPrimitives.tsx'
@@ -117,7 +117,7 @@ function ScoreStatisticsModule<Key extends ScenicScoreBandKey | DifficultyScoreB
                 <th scope="row">{getScoreBandLabel(band.key)}</th>
                 <td>{band.itemCount}</td>
                 <td>{formatNullableDistance(band.distanceMeters)}</td>
-                <td>{formatPercentage(band.distanceShare)}</td>
+                <td><DistanceShare value={band.distanceShare} /></td>
               </tr>
             ))}
             <tr className="statistics-pending-row">
@@ -177,7 +177,7 @@ function DistributionModule({ mode, onChange, views }: {
                 <th scope="row">{band.label}</th>
                 <td>{band.itemCount}</td>
                 <td>{formatNullableDistance(band.distanceMeters)}</td>
-                <td>{formatPercentage(band.distanceShare)}</td>
+                <td><DistanceShare value={band.distanceShare} /></td>
               </tr>
             ))}
             <tr className="statistics-pending-row">
@@ -223,6 +223,8 @@ function TripBreakdownTable({
   sort: TripStatisticsSort
   onChangeSort: (key: TripStatisticsSortKey) => void
 }) {
+  const [expanded, setExpanded] = useState(false)
+  const contentId = useId()
   return (
     <section className="statistics-module" aria-label="每次旅程明细">
       <header className="statistics-module-heading">
@@ -230,10 +232,17 @@ function TripBreakdownTable({
           <h3>每次旅程明细</h3>
           <p>规划与实际字段分列汇总。标有“已记录”的合计仅覆盖已填写路段，不与待补全数据混合。</p>
         </div>
+        <button type="button" className="statistics-disclosure-button" aria-expanded={expanded} aria-controls={contentId} onClick={() => setExpanded((value) => !value)}>
+          {expanded ? '收起' : '展开'}明细
+        </button>
       </header>
-      <div className="statistics-table-wrap">
+      <div id={contentId} className="statistics-table-wrap" hidden={!expanded} tabIndex={0} role="region" aria-label="旅程明细，可横向滚动">
         <table className="statistics-table statistics-trip-table">
           <thead>
+            <tr className="statistics-column-groups">
+              <th scope="col">旅程</th><th scope="colgroup" colSpan={2}>里程 · 规划 / 实际</th>
+              <th scope="col">行程</th><th scope="colgroup" colSpan={2}>驾驶时间 · 预计 / 实际</th><th scope="col">记录状态</th>
+            </tr>
             <tr>
               <SortHeader label="旅程" sortKey="startDate" sort={sort} onChange={onChangeSort} />
               <SortHeader label="规划里程" sortKey="plannedDistance" sort={sort} onChange={onChangeSort} />
@@ -260,10 +269,10 @@ function TripBreakdownTable({
                   <span className={`statistics-completeness-badge ${trip.dataCompleteness.overallStatus}`}>
                     {COMPLETENESS_LABEL[trip.dataCompleteness.overallStatus]}
                   </span>
-                  <small className="statistics-cell-note">
+                  <details className="statistics-cell-details"><summary>完整度说明</summary><small className="statistics-cell-note">
                     规划：{COMPLETENESS_LABEL[trip.dataCompleteness.plannedDistance.status]}<br />
                     实际：{COMPLETENESS_LABEL[trip.dataCompleteness.actualDistance.status]}
-                  </small>
+                  </small></details>
                 </td>
               </tr>
             ))}

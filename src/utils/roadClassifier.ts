@@ -5,6 +5,7 @@ import type {
   RouteRoadPart,
 } from '../types/roadStatistics.ts'
 import { isProvinceSensitiveRoadPart } from './province.ts'
+import { isRoadConnector } from './roadConnector.ts'
 
 const ANONYMOUS_ROAD_NAMES = new Set([
   '',
@@ -475,6 +476,7 @@ export function restoreAutomaticRoadPartClassification(
           ...part,
           roadClass: 'UNKNOWN' as const,
           routeRef: undefined,
+          manualDirection: undefined,
           confidence: 'LOW' as const,
           source: 'FALLBACK' as const,
         }
@@ -509,6 +511,7 @@ export function mergeAdjacentRoadParts(parts: readonly RouteRoadPart[]): RouteRo
       && routeRef !== undefined
       && previousRouteRef === routeRef
       && previous.roadClass === part.roadClass
+      && !isRoadConnector(previous) && !isRoadConnector(part)
       && sameProvinceIdentity(previous, part)
       && previous.source !== 'MANUAL'
       && part.source !== 'MANUAL'

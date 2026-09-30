@@ -54,6 +54,8 @@ export interface RoadClassificationResult extends RoadClassification {
 }
 
 export interface RouteRoadPart extends RoadClassification {
+  /** Endpoint for travel in polyline order; pending disables automatic naming. */
+  manualDirection?: string
   distanceMeters: number
   distanceSource?: RoadDistanceSource
   roadName?: string
@@ -68,6 +70,7 @@ export interface RouteRoadPart extends RoadClassification {
 }
 
 export interface ManualRoadIntervalAnnotation {
+  manualDirection?: string
   id: string
   startPointIndex: number
   endPointIndex: number

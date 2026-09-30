@@ -275,6 +275,26 @@ test('analysis-only persistence and manual correction preserve old geometry and 
   assert.deepEqual(cache.points, oldPoints)
 })
 
+test('row direction corrections persist, clear for automatic mode and restore without changing geometry', async () => {
+  globalThis.indexedDB = new IDBFactory()
+  const segment = createSegment('row-direction')
+  const route = createRoute(segment)
+  const points = [{ lat: 34, lon: 108 }, { lat: 34.1, lon: 108.1 }]
+  await savePlannedSegmentRouteCache({ segmentId: segment.id, routeBuildKey: buildSegmentRouteKey(segment),
+    points, distanceMeters: 15000, roadParts: route.roadParts, roadAnalysis: route.roadAnalysis })
+  for (const direction of ['茂名', 'pending', '', '包头']) {
+    await saveManualRoadPartCorrection(segment.id, 0, { roadClass: 'EXPRESSWAY', routeRef: 'G65', manualDirection: direction })
+    const cache = await getSegmentRouteCache(segment.id)
+    assert.equal(cache.roadParts[0].manualDirection, direction || undefined)
+    assert.deepEqual(cache.points, points)
+    assert.equal(cache.distanceMeters, 15000)
+  }
+  await restoreAutomaticRoadPartCorrection(segment.id, 0)
+  assert.equal((await getSegmentRouteCache(segment.id)).roadParts[0].manualDirection, undefined)
+  await saveManualRoadPartCorrection(segment.id, 0, { roadClass: 'EXPRESSWAY', routeRef: 'G30', manualDirection: '茂名' })
+  assert.equal((await getSegmentRouteCache(segment.id)).roadParts[0].manualDirection, undefined)
+})
+
 test('historical automatic analysis preserves an existing manual road conclusion', async () => {
   globalThis.indexedDB = new IDBFactory()
   const segment = createSegment('manual-priority')

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { confirmDialog } from './ConfirmDialog'
 import { AppIcon } from './icons'
 import { PhotoFilmStrip } from './PhotoFilmStrip'
@@ -73,6 +74,7 @@ function PhotoViewerDialog({
   const [noteSaveStatus, setNoteSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [zoom, setZoom] = useState(1)
   const [rotation, setRotation] = useState(0)
+  const [showDetails, setShowDetails] = useState(false)
   const [offset, setOffset] = useState({ x: 0, y: 0 })
   const [actionError, setActionError] = useState('')
   const dragRef = useRef<{ startX: number; startY: number; originX: number; originY: number } | null>(null)
@@ -156,6 +158,7 @@ function PhotoViewerDialog({
     } catch (error) {
       setActionError(error instanceof Error ? error.message : String(error))
       setNoteSaveStatus('error')
+      setShowDetails(true)
       return false
     }
   }, [isReadonlyMode, noteDirty, noteDraft, onSaveNote, photo])
@@ -238,7 +241,7 @@ function PhotoViewerDialog({
     }
   }
 
-  return (
+  return createPortal(
     <div className="photo-viewer-backdrop" role="presentation" onMouseDown={(event) => {
       if (event.target === event.currentTarget) void closeAfterSaving()
     }}>
@@ -254,10 +257,15 @@ function PhotoViewerDialog({
             <strong>{photo.originalFilename}</strong>
             <span>{selectedIndex + 1} / {photos.length}</span>
           </div>
-          <button type="button" className="btn-secondary" onClick={() => void closeAfterSaving()} aria-label="关闭照片查看器">关闭</button>
+          <div className="photo-viewer-header-actions">
+            <button type="button" className="btn-secondary" aria-expanded={showDetails} aria-controls="photo-viewer-details" onClick={() => setShowDetails((value) => !value)}>
+              {showDetails ? '收起详情' : '查看详情'}
+            </button>
+            <button type="button" className="btn-secondary" onClick={() => void closeAfterSaving()} aria-label="关闭照片查看器">关闭</button>
+          </div>
         </header>
 
-        <div className="photo-viewer-main">
+        <div className={`photo-viewer-main${showDetails ? ' has-details' : ''}`}>
           <div
             className="photo-viewer-stage"
             onWheel={(event) => {
@@ -320,7 +328,7 @@ function PhotoViewerDialog({
             <PhotoFilmStrip photos={photos} selectedPhotoId={selectedPhotoId} onSelect={(photoId) => void selectAfterSaving(photoId)} />
           </div>
 
-          <aside className="photo-viewer-sidebar">
+          <aside id="photo-viewer-details" className="photo-viewer-sidebar" hidden={!showDetails}>
             <dl>
               <div><dt>拍摄时间</dt><dd>{photo.capturedAt ? new Date(photo.capturedAt).toLocaleString() : (photo.metadataReadAt ? 'EXIF 中未发现拍摄时间' : '尚未读取')}</dd></div>
               <div><dt>照片方向</dt><dd>{photo.orientation ? getOrientationText(photo.orientation) : (photo.metadataReadAt ? 'EXIF 中未发现方向' : '尚未读取')}</dd></div>
@@ -441,7 +449,8 @@ function PhotoViewerDialog({
           </div>
         </footer>
       </section>
-    </div>
+    </div>,
+    document.body,
   )
 }
 

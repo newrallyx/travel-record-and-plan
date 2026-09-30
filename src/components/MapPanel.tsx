@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { CoordPoint, RouteColorMode, RouteSegment, Trip, Waypoint } from '../types/trip'
 import type { LinkedPhotoRecord, PhotoCoordinate } from '../types/photo'
-import { getAllSegmentRouteCache, type RouteCacheRecord } from '../services/routeCacheDb'
+import { getAllSegmentRouteCache, subscribeRouteCacheChanges, type RouteCacheRecord } from '../services/routeCacheDb'
 import { MapCanvas } from './map/MapCanvas'
 import type { ResolvedRoutePatch, RouteRefreshRequest, TrackSavePayload } from './map/types'
 import { useMapTracks } from './map/useMapTracks'
 import { useTrackEditing } from './map/useTrackEditing'
+import { useOverviewAggregation } from './map/useOverviewAggregation'
 import {
   DEFAULT_ROAD_TYPE_VISIBILITY,
   summarizeCurrentRoadTypeDistances,
@@ -19,7 +20,9 @@ interface MapPanelProps {
   roadTypeVisibility?: RoadTypeVisibility
   allTrips?: Trip[]
   selectedTripId?: string
+  overviewYear?: string
   isOverviewMode: boolean
+  aggregateOverview?: boolean
   editingSegmentId: string | null
   onCancelEdit: () => void
   onSaveEdit: (payload: TrackSavePayload) => void
@@ -54,7 +57,9 @@ function MapPanel({
   roadTypeVisibility = DEFAULT_ROAD_TYPE_VISIBILITY,
   allTrips = [],
   selectedTripId = '',
+  overviewYear,
   isOverviewMode,
+  aggregateOverview = false,
   editingSegmentId,
   onCancelEdit,
   onSaveEdit,
@@ -93,18 +98,27 @@ function MapPanel({
   const [routeCaches, setRouteCaches] = useState<RouteCacheRecord[]>([])
   useEffect(() => {
     let active = true
+    let revision = 0
+    let refreshTimer: number | undefined
     const loadRouteCaches = async () => {
+      const currentRevision = ++revision
       const records = await getAllSegmentRouteCache()
-      if (active) setRouteCaches(records)
+      if (active && currentRevision === revision) setRouteCaches(records)
     }
+    // Refresh after committed writes, not after selecting another route. Coalesce
+    // batch writes and discard any read started before the most recent write.
+    const unsubscribe = subscribeRouteCacheChanges(() => {
+      revision++
+      window.clearTimeout(refreshTimer)
+      refreshTimer = window.setTimeout(() => void loadRouteCaches(), 100)
+    })
     void loadRouteCaches()
-    // 新规划路线的缓存写入是异步的；短暂重读可使累计图例尽快反映本次规划结果。
-    const retryTimer = window.setTimeout(() => void loadRouteCaches(), 300)
     return () => {
       active = false
-      window.clearTimeout(retryTimer)
+      unsubscribe()
+      window.clearTimeout(refreshTimer)
     }
-  }, [tracks])
+  }, [])
   const trackEditing = useTrackEditing({
     tracks,
     editingSegmentId,
@@ -112,11 +126,17 @@ function MapPanel({
     onCancelEdit,
     onSaveEdit,
   })
+  const historicalRoadDistances = useMemo(
+    () => summarizeHistoricalRoadTypeDistances(allTrips, routeCaches, overviewYear),
+    [allTrips, routeCaches, overviewYear],
+  )
   const roadTypeLegend = useMemo(() => ({
+    overviewYear,
     current: summarizeCurrentRoadTypeDistances(trackEditing.renderedTracks, filteredSegments),
-    historical: summarizeHistoricalRoadTypeDistances(allTrips, routeCaches),
+    historical: historicalRoadDistances,
     showCurrent: Boolean(selectedTripId),
-  }), [allTrips, filteredSegments, routeCaches, selectedTripId, trackEditing.renderedTracks])
+  }), [filteredSegments, historicalRoadDistances, selectedTripId, overviewYear, trackEditing.renderedTracks])
+  const overview = useOverviewAggregation(tracks, aggregateOverview && isOverviewMode && !selectedTripId && !editingSegmentId && !loading && tracks.length > 0)
 
   return (
     <section className="card-section map-section-with-toolbar">
@@ -127,6 +147,8 @@ function MapPanel({
         </div>
       )}
       {!loading && message.startsWith('未解析') && <p className="hint-text">{message}</p>}
+      {overview.pending && <p className="hint-text" role="status">正在加载总览轨迹，暂时显示原轨迹…</p>}
+      {overview.error && <p className="hint-text" role="status">总览合并暂不可用，已保留原轨迹显示。</p>}
 
       {editingSegmentId && !isReadonlyMode && (
         <div className="map-toolbar">
@@ -184,6 +206,7 @@ function MapPanel({
       <MapCanvas
         filteredSegments={filteredSegments}
         renderedTracks={trackEditing.renderedTracks}
+        overviewLines={overview.lines}
         routeColorMode={routeColorMode}
         roadTypeVisibility={roadTypeVisibility}
         roadTypeLegend={roadTypeLegend}

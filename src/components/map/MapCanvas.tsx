@@ -1,5 +1,7 @@
-import { useMemo, type Dispatch, type SetStateAction } from 'react'
+import { useMemo, useState, type Dispatch, type SetStateAction } from 'react'
 import { MapContainer, Marker, Popup, Polyline, TileLayer } from 'react-leaflet'
+import { OverviewRouteLayer } from './OverviewRouteLayer'
+import { OVERVIEW_COUNT_BANDS, OVERVIEW_COUNT_LABELS, overviewLineWeight, type OverviewLine } from './overviewAggregation'
 import type { CoordPoint, RouteColorMode, RouteSegment, Waypoint } from '../../types/trip'
 import type { LinkedPhotoRecord, PhotoCoordinate } from '../../types/photo'
 import {
@@ -10,6 +12,7 @@ import {
 } from '../../utils/segmentScores'
 import {
   MapResizeController,
+  MapZoomController,
   PhotoFocusController,
   PhotoPositionPickController,
   ViewportController,
@@ -26,6 +29,7 @@ import {
   ROAD_TYPE_MAP_COLORS,
   ROAD_TYPE_MAP_LABELS,
   roadTypeColorForClass,
+  roadTypeWeightForCategory,
   type RoadTypeLegendData,
   type RoadTypeVisibility,
   UNVERIFIED_ROAD_TYPE_COLOR,
@@ -36,6 +40,7 @@ import { getVisibleTrackPoints } from './visibleTrackPoints'
 interface MapCanvasProps {
   filteredSegments: RouteSegment[]
   renderedTracks: SegmentTrack[]
+  overviewLines?: OverviewLine[]
   routeColorMode: RouteColorMode
   roadTypeVisibility: RoadTypeVisibility
   roadTypeLegend: RoadTypeLegendData
@@ -65,55 +70,79 @@ function readDraggedLatLng(event: any): { lat: number; lng: number } {
   return marker.getLatLng()
 }
 
-function RoadTypeLegend({ data }: { data: RoadTypeLegendData }) {
+function FrequencyLegend({ zoom }: { zoom: number }) {
+  return <div className="map-frequency-key" aria-label="轨迹经过次数图例">
+    <strong>经过次数</strong>
+    <div>{OVERVIEW_COUNT_BANDS.map((count, i) => <span key={count}>
+      <i style={{ height: overviewLineWeight(count, zoom) }} aria-hidden="true" />{OVERVIEW_COUNT_LABELS[i]}
+    </span>)}</div>
+    <details className="map-frequency-help">
+      <summary>计数说明</summary>
+      <small>按当前范围内的路线记录累计；不确定的重合保留独立线。</small>
+      <small>悬停或点击轨迹可查看当前范围内该路段的经过次数。</small>
+    </details>
+  </div>
+}
+
+function RoadTypeLegend({ data, zoom, frequency = false }: { data: RoadTypeLegendData; zoom: number; frequency?: boolean }) {
   return (
-    <details className="map-score-legend map-road-type-legend">
-      <summary className="map-road-type-legend-toggle" aria-label="展开或收起道路类型里程统计">
-        <span className="map-road-type-legend-toggle-main">
-          <span className="map-road-type-legend-dots" aria-hidden="true">
-            {ROAD_TYPE_MAP_CATEGORIES.map((category) => (
-              <span key={category} style={{ backgroundColor: ROAD_TYPE_MAP_COLORS[category] }} />
-            ))}
+    <div className="map-score-legend map-road-type-legend">
+      <div className="map-road-type-key" aria-label="道路类型颜色说明">
+        {ROAD_TYPE_MAP_CATEGORIES.map((category) => (
+          <span key={category}>
+            <i style={{ backgroundColor: ROAD_TYPE_MAP_COLORS[category], height: frequency ? 3 : roadTypeWeightForCategory(category, zoom) }} aria-hidden="true" />
+            {ROAD_TYPE_MAP_LABELS[category]}
           </span>
-          <span>道路统计</span>
-        </span>
-        <span className="map-road-type-legend-toggle-action" aria-hidden="true" />
-      </summary>
-      <div className="map-road-type-legend-body" aria-label="道路类型里程图例">
-        <div className="map-score-legend-title">道路类型着色</div>
-        <div className="map-road-type-legend-note">
-          {data.showCurrent ? '当前范围显示本次与历史累计里程。' : '全部旅程视图只显示历史累计里程。'}
-        </div>
-        <div className="map-road-type-legend-list">
-          {ROAD_TYPE_MAP_CATEGORIES.map((category) => (
-            <div className="map-road-type-legend-row" key={category}>
-              <span className="map-score-legend-chip" style={{ backgroundColor: ROAD_TYPE_MAP_COLORS[category] }} />
-              <span className="map-road-type-legend-label">{ROAD_TYPE_MAP_LABELS[category]}</span>
+        ))}
+        <span><i style={{ backgroundColor: UNVERIFIED_ROAD_TYPE_COLOR, height: frequency ? 3 : roadTypeWeightForCategory(null, zoom) }} aria-hidden="true" />{ROAD_TYPE_MAP_LABELS.UNKNOWN}</span>
+      </div>
+      <details>
+        <summary className="map-road-type-legend-toggle" aria-label="展开或收起道路类型里程统计">
+          <span className="map-road-type-legend-toggle-main">
+            <span>道路里程统计</span>
+          </span>
+          <span className="map-road-type-legend-toggle-action" aria-hidden="true" />
+        </summary>
+        {frequency && <FrequencyLegend zoom={zoom} />}
+        <div className="map-road-type-legend-body" aria-label="道路类型里程图例">
+          <div className="map-score-legend-title">道路类型着色</div>
+          <div className="map-road-type-legend-note">
+            {data.overviewYear
+              ? `${data.overviewYear === 'unknown' ? '未注明年份' : `${data.overviewYear}年`}旅程的道路里程，按旅程开始年份统计。`
+              : data.showCurrent ? '当前范围显示本次与历史累计里程。' : '全部旅程视图只显示历史累计里程。'}
+          </div>
+          <div className="map-road-type-legend-list">
+            {ROAD_TYPE_MAP_CATEGORIES.map((category) => (
+              <div className="map-road-type-legend-row" key={category}>
+                <span className="map-score-legend-chip" style={{ backgroundColor: ROAD_TYPE_MAP_COLORS[category] }} />
+                <span className="map-road-type-legend-label">{ROAD_TYPE_MAP_LABELS[category]}</span>
+                <span className="map-road-type-legend-distance">
+                  {data.showCurrent
+                    ? `本次 ${formatDistance(data.current.distances[category], '0.0 公里')} + 累计 ${formatDistance(data.historical.distances[category], '0.0 公里')}`
+                    : `${data.overviewYear ? '所选年份' : '累计'} ${formatDistance(data.historical.distances[category], '0.0 公里')}`}
+                </span>
+              </div>
+            ))}
+            <div className="map-road-type-legend-row map-road-type-legend-pending">
+              <span className="map-score-legend-chip" style={{ backgroundColor: UNVERIFIED_ROAD_TYPE_COLOR }} />
+              <span className="map-road-type-legend-label">待核实</span>
               <span className="map-road-type-legend-distance">
                 {data.showCurrent
-                  ? `本次 ${formatDistance(data.current.distances[category], '0.0 公里')} + 累计 ${formatDistance(data.historical.distances[category], '0.0 公里')}`
-                  : `累计 ${formatDistance(data.historical.distances[category], '0.0 公里')}`}
+                  ? `本次 ${formatDistance(data.current.unverifiedMeters, '0.0 公里')} + 累计 ${formatDistance(data.historical.unverifiedMeters, '0.0 公里')}`
+                  : `${data.overviewYear ? '所选年份' : '累计'} ${formatDistance(data.historical.unverifiedMeters, '0.0 公里')}`}
               </span>
             </div>
-          ))}
-          <div className="map-road-type-legend-row map-road-type-legend-pending">
-            <span className="map-score-legend-chip" style={{ backgroundColor: UNVERIFIED_ROAD_TYPE_COLOR }} />
-            <span className="map-road-type-legend-label">待核实</span>
-            <span className="map-road-type-legend-distance">
-              {data.showCurrent
-                ? `本次 ${formatDistance(data.current.unverifiedMeters, '0.0 公里')} + 累计 ${formatDistance(data.historical.unverifiedMeters, '0.0 公里')}`
-                : `累计 ${formatDistance(data.historical.unverifiedMeters, '0.0 公里')}`}
-            </span>
           </div>
         </div>
-      </div>
-    </details>
+      </details>
+    </div>
   )
 }
 
 export function MapCanvas({
   filteredSegments,
   renderedTracks,
+  overviewLines,
   routeColorMode,
   roadTypeVisibility,
   roadTypeLegend,
@@ -133,6 +162,13 @@ export function MapCanvas({
   loading,
   onEndpointDraftChange,
 }: MapCanvasProps) {
+  const [zoom, setZoom] = useState(4)
+  // 全国 2px、区域 2.5px、城市 3.5px、街区最高 5px；兼容四分之一级缩放。
+  const lineWeight = zoom <= 8
+    ? Math.max(2, 2 + (zoom - 4) * 0.125)
+    : Math.min(5, 2.5 + (zoom - 8) * 0.25)
+  const lineOpacity = isOverviewMode ? 0.82 : 0.96
+  const secondaryRoadOpacity = isOverviewMode ? 0.95 : 0.96
   const isDarkTheme = typeof window.matchMedia === 'function'
     && window.matchMedia('(prefers-color-scheme: dark)').matches
   const tileStyle = isDarkTheme ? 7 : 8
@@ -176,13 +212,15 @@ export function MapCanvas({
         className={photoPositionEditId ? 'map-container photo-position-picking' : 'map-container'}
       >
         <MapResizeController watchKey={mapResizeKey} />
+        <MapZoomController onZoomChange={setZoom} />
         <TileLayer
           attribution='&copy; <a href="https://www.amap.com/">Amap</a>'
           url={`https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=${tileStyle}&x={x}&y={y}&z={z}`}
           subdomains={[1, 2, 3, 4]}
         />
 
-        {renderedTracks.map((track) => {
+        {overviewLines && <OverviewRouteLayer lines={overviewLines} routeColorMode={routeColorMode} visibility={roadTypeVisibility} />}
+        {!overviewLines && renderedTracks.map((track) => {
           if (track.line.length < 2) return null
           const sourceSegment = segmentMap.get(track.segmentId)
           const lineColor = routeColorMode === 'roadType'
@@ -194,13 +232,12 @@ export function MapCanvas({
             routeColorMode === 'default' || routeColorMode === 'roadType' || !sourceSegment
               ? 'default'
               : getSegmentScore(sourceSegment, routeColorMode) ?? 'unrated'
-          const lineWeight = routeColorMode === 'default' ? 4 : 6
           const roadPartRenderings = roadPartRenderMap.get(track.segmentId) ?? []
 
           if (routeColorMode === 'roadType' && roadPartRenderings.length) {
             return roadPartRenderings.map((part) => {
               const roadTypeCategory = getRoadTypeMapCategory(part.roadClass)
-              if (routeColorMode === 'roadType' && roadTypeCategory && !roadTypeVisibility[roadTypeCategory]) {
+              if (!roadTypeVisibility[roadTypeCategory ?? 'UNKNOWN']) {
                 return null
               }
               const color = routeColorMode === 'roadType' ? roadTypeColorForClass(part.roadClass) : lineColor
@@ -208,17 +245,27 @@ export function MapCanvas({
                 <Polyline
                   key={`${track.segmentId}-road-${part.sourceIndex}-${routeColorMode}-${modeScore}`}
                   positions={part.positions}
-                  pathOptions={{ color, weight: lineWeight, opacity: 0.96 }}
+                  pathOptions={{
+                    color,
+                    weight: roadTypeWeightForCategory(roadTypeCategory, zoom),
+                    opacity: roadTypeCategory === 'OTHER' || roadTypeCategory === null ? secondaryRoadOpacity : lineOpacity,
+                  }}
                 />
               )
             })
           }
 
+          if (routeColorMode === 'roadType' && !roadTypeVisibility.UNKNOWN) return null
+
           return (
             <Polyline
               key={`${track.segmentId}-${routeColorMode}-${modeScore}`}
               positions={toLatLng(track.line)}
-              pathOptions={{ color: lineColor, weight: lineWeight, opacity: 0.96 }}
+              pathOptions={{
+                color: lineColor,
+                weight: routeColorMode === 'roadType' ? roadTypeWeightForCategory(null, zoom) : lineWeight,
+                opacity: routeColorMode === 'roadType' ? secondaryRoadOpacity : lineOpacity,
+              }}
             />
           )
         })}
@@ -352,7 +399,8 @@ export function MapCanvas({
         </div>
       </div>
     )}
-    {routeColorMode === 'roadType' && <RoadTypeLegend data={roadTypeLegend} />}
+    {routeColorMode === 'roadType' && <RoadTypeLegend data={roadTypeLegend} zoom={zoom} frequency={Boolean(overviewLines)} />}
+    {overviewLines && routeColorMode !== 'roadType' && <div className="map-score-legend map-overview-frequency-legend"><FrequencyLegend zoom={zoom} /></div>}
   </div>
 )
 }

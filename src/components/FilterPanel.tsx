@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { FilterState, RouteColorMode, Trip } from '../types/trip'
 import { sortTripDaysByDate } from '../utils/date'
+import { filterTripsByYear, getSelectedYear, getTripYear } from '../utils/tripYear'
 import {
-  ROAD_TYPE_MAP_CATEGORIES,
+  ROAD_TYPE_VISIBILITY_CATEGORIES,
   ROAD_TYPE_MAP_COLORS,
   ROAD_TYPE_MAP_LABELS,
   type RoadTypeVisibility,
@@ -57,6 +58,10 @@ function FilterPanel({
   const [isSegmentOrderOpen, setIsSegmentOrderOpen] = useState(false)
   const [draggingSegmentId, setDraggingSegmentId] = useState<string | null>(null)
   const selectedTrip = trips.find((trip) => trip.id === filters.tripId)
+  const selectedYear = getSelectedYear(trips, filters)
+  const yearOptions = [...new Set(trips.map(getTripYear))].sort((a, b) => a.localeCompare(b))
+  const yearTrips = filterTripsByYear(trips, selectedYear)
+  const showYearStats = Boolean(selectedYear && !filters.tripId)
 
   const dayOptions = useMemo(() => {
     return sortTripDaysByDate(selectedTrip?.days ?? [])
@@ -64,7 +69,7 @@ function FilterPanel({
 
   const selectedDay = dayOptions.find((day) => day.id === filters.dayId)
   const segmentOptions = selectedDay?.routeSegments ?? []
-  const areAllRoadTypesVisible = ROAD_TYPE_MAP_CATEGORIES.every((category) => roadTypeVisibility[category])
+  const areAllRoadTypesVisible = ROAD_TYPE_VISIBILITY_CATEGORIES.every((category) => roadTypeVisibility[category])
   const showTripStats = Boolean(filters.tripId && (!filters.dayId || filters.segmentId))
   const showDayStats = Boolean(filters.dayId && filters.segmentId)
 
@@ -89,16 +94,30 @@ function FilterPanel({
   return (
     <section className="card-section filter-panel-card">
       <div className="filter-row">
+        <div className="filter-field year-filter-field">
+          <label className="filter-field-label" htmlFor="year-filter-select">年份</label>
+          <select
+            id="year-filter-select"
+            value={selectedYear}
+            onChange={(e) => onChange({ year: e.target.value, tripId: '', dayId: '', segmentId: '' })}
+            title="按旅程开始年份分组，跨年旅程归入开始年份"
+          >
+            <option value="">全部年份</option>
+            {yearOptions.map((year) => (
+              <option key={year} value={year}>{year === 'unknown' ? '未注明年份' : `${year}年`}</option>
+            ))}
+          </select>
+        </div>
         <div className="filter-field trip-filter-field">
           <label className="filter-field-label" htmlFor="trip-filter-select">旅程</label>
           <div className="filter-control-row">
             <select
               id="trip-filter-select"
               value={filters.tripId}
-              onChange={(e) => onChange({ tripId: e.target.value, dayId: '', segmentId: '' })}
+              onChange={(e) => onChange({ year: selectedYear, tripId: e.target.value, dayId: '', segmentId: '' })}
             >
-              <option value="">全部旅程</option>
-              {trips.map((trip) => (
+              <option value="">{selectedYear ? '全年旅程' : '全部旅程'}</option>
+              {yearTrips.map((trip) => (
                 <option key={trip.id} value={trip.id}>
                   {trip.title}
                 </option>
@@ -295,7 +314,7 @@ function FilterPanel({
             {routeColorMode === 'roadType' && (
               <div className="road-type-visibility-controls" aria-label="道路类型显示开关">
                 <div className="road-type-visibility-options">
-                  {ROAD_TYPE_MAP_CATEGORIES.map((category) => (
+                  {ROAD_TYPE_VISIBILITY_CATEGORIES.map((category) => (
                     <label className="road-type-visibility-option" key={category}>
                       <input
                         type="checkbox"
@@ -318,6 +337,7 @@ function FilterPanel({
                       NATIONAL_ROAD: true,
                       PROVINCIAL_ROAD: true,
                       OTHER: true,
+                      UNKNOWN: true,
                     })}
                     disabled={areAllRoadTypesVisible}
                   >
@@ -330,8 +350,9 @@ function FilterPanel({
                       NATIONAL_ROAD: false,
                       PROVINCIAL_ROAD: false,
                       OTHER: false,
+                      UNKNOWN: false,
                     })}
-                    disabled={!ROAD_TYPE_MAP_CATEGORIES.some((category) => roadTypeVisibility[category])}
+                    disabled={!ROAD_TYPE_VISIBILITY_CATEGORIES.some((category) => roadTypeVisibility[category])}
                   >
                     全不选
                   </button>
@@ -343,9 +364,9 @@ function FilterPanel({
               <div className="route-color-info-popover">
                 <p>着色模式互斥，同一时间最多开启一种可视化。</p>
                 {routeColorMode === 'roadType' ? (
-                  <p>灰色代表待核实，且不受四类道路开关影响；地图上的“道路统计”图例可查看当前范围与历史累计。</p>
+                  <p>灰色轨迹由“未知道路”开关控制，包含未知分类和缺少有效道路分析的路线；地图上的“道路统计”图例可查看当前范围与历史累计的待核实里程。</p>
                 ) : !canUseScoreColoring ? (
-                  <p>评分着色仅在选中具体旅程时可用；“全部旅程”会混合多次记录，已自动关闭评分着色。</p>
+                  <p>评分着色仅在选中具体旅程时可用；“全年旅程”和“全部旅程”会混合多次记录，已自动关闭评分着色。</p>
                 ) : null}
               </div>
             </details>
@@ -353,14 +374,14 @@ function FilterPanel({
         </div>
       </div>
 
-      {(showTripStats || showDayStats) && (
+      {(showYearStats || showTripStats || showDayStats) && (
         <div
           className={`filter-stats-row ${showTripStats && showDayStats ? 'has-two-scopes' : ''}`}
           aria-label="筛选范围统计"
         >
-          {showTripStats && (
+          {(showTripStats || showYearStats) && (
             <p>
-              <strong className="filter-stat-label">旅程总计</strong>
+              <strong className="filter-stat-label">{showYearStats ? `全年总计 · ${yearTrips.length} 个旅程` : '旅程总计'}</strong>
               里程 {tripDistanceText} · 预计 {tripDurationText} · 过路费 {tripTollText}
             </p>
           )}

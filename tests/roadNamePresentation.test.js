@@ -17,3 +17,12 @@ test('numeric road names and full width refs are checked without hiding normal b
   assert.equal(presentRoadNames(['桥北街', '秦岭隧道', '某枢纽', '某服务区'], null).summary, '桥北街')
   assert.equal(presentRoadNames(['某立交', '城市道路'], 'G30').summary, '')
 })
+
+test('statistics uses the same class-specific numbered road names as the map', () => {
+  assert.deepEqual(presentRoadNames(['210国道', 'G211其他名称'], 'G210', 'NATIONAL_ROAD'), {
+    summary: '满防线', conflicts: ['G211其他名称'],
+  })
+  assert.equal(presentRoadNames([], 'G56', 'EXPRESSWAY').summary, '杭瑞高速')
+  assert.equal(presentRoadNames([], 'G6911', 'EXPRESSWAY').summary, '安来高速')
+  assert.equal(presentRoadNames(['机场高速'], null, 'EXPRESSWAY').summary, '机场高速')
+})

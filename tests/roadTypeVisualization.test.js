@@ -110,6 +110,7 @@ test('MapCanvas road-type helper keeps category colors and routes unknown parts 
     NATIONAL_ROAD: true,
     PROVINCIAL_ROAD: true,
     OTHER: true,
+    UNKNOWN: true,
   })
   assert.equal(getRoadTypeMapCategory('COUNTY_ROAD'), 'OTHER')
   assert.equal(getRoadTypeMapCategory('UNKNOWN'), null)
@@ -150,6 +151,30 @@ test('MapCanvas road-type helper keeps category colors and routes unknown parts 
     // 100 m UNKNOWN + 200 m analysis gap + 500 m without roadParts
     unverifiedMeters: 800,
   })
+})
+
+test('annual road legend excludes other years and plans, including unverified mileage', () => {
+  const old = createSegment('old', { distanceMeters: 9000 })
+  const current = createSegment('current', { distanceMeters: 2000 })
+  const missing = createSegment('missing', { distanceMeters: 500 })
+  const planned = createSegment('plan', { distanceMeters: 8000 })
+  const trips = [
+    { category: 'review', startDate: '2025-12-31', endDate: '2026-01-02', days: [{ routeSegments: [old] }] },
+    { category: 'review', startDate: '2026-02-01', days: [{ routeSegments: [current, missing] }] },
+    { category: 'plan', startDate: '2026-03-01', days: [{ routeSegments: [planned] }] },
+  ]
+  const caches = [
+    createCache(old, [createRoadPart('EXPRESSWAY', 9000)]),
+    createCache(current, [createRoadPart('NATIONAL_ROAD', 1500), createRoadPart('PROVINCIAL_ROAD', 500)]),
+    createCache(planned, [createRoadPart('EXPRESSWAY', 8000)]),
+  ]
+  assert.deepEqual(summarizeHistoricalRoadTypeDistances(trips, caches, '2026'), {
+    distances: { EXPRESSWAY: 0, NATIONAL_ROAD: 1500, PROVINCIAL_ROAD: 500, OTHER: 0 },
+    unverifiedMeters: 500,
+  })
+  assert.equal(summarizeHistoricalRoadTypeDistances(trips, caches, '2025').distances.EXPRESSWAY, 9000)
+  assert.equal(summarizeHistoricalRoadTypeDistances(trips, caches, '').distances.EXPRESSWAY, 9000)
+  assert.equal(summarizeHistoricalRoadTypeDistances(trips, caches, '2027').unverifiedMeters, 0)
 })
 
 test('historical road-type totals include review history only and mark stale routes unverified', () => {

@@ -1,0 +1,106 @@
+/* 临时跨模块兼容层：此处规则必须晚于基础样式、主题和布局断点。
+   保留的共享控件状态、尺寸和折叠布局会覆盖多个模块；不要随意提前。
+   新的模块专属样式请写回对应模块，不再追加到本文件。 */
+
+.workspace-tabs button.active,
+.detail-panel-tabs button.active,
+.compact-panel-tabs button.active {
+  border-color: var(--line);
+  background: var(--primary-soft);
+  box-shadow: none;
+}
+
+.card-section > h2::before,
+.segment-detail-section > p:first-child::before,
+.endpoint-section > p:first-child::before,
+.waypoint-section > p:first-child::before,
+.segment-score-section > p:first-child::before,
+.segment-note-section > p:first-child::before {
+  background: var(--primary);
+}
+
+input,
+select,
+textarea,
+.btn-secondary,
+.btn-danger,
+.danger-btn,
+.trip-edit-button,
+.panel-collapse-btn,
+.panel-rail-btn {
+  background: var(--surface);
+}
+
+input:not([type='checkbox']):not([type='radio']),
+select,
+textarea,
+.btn-primary,
+.primary-btn,
+.btn-secondary,
+.btn-danger,
+.danger-btn,
+.trip-item-actions button,
+.route-actions button,
+.segment-detail-edit-actions button,
+.roadbook-card-actions button {
+  min-height: var(--control-min-height);
+}
+
+.filter-panel-card .filter-row select {
+  min-height: 34px;
+}
+
+.trip-edit-button {
+  font-weight: 500;
+}
+
+.amap-key-button,
+.amap-key-button.configured {
+  background: var(--surface);
+  border-color: var(--line-2);
+  color: var(--ink-2);
+  box-shadow: none;
+}
+
+@media (min-width: 1281px) {
+
+  .workspace-layout {
+    grid-template-columns: minmax(320px, 360px) minmax(0, 1fr) minmax(340px, 360px);
+    gap: 10px;
+  }
+
+  .workspace-layout.left-collapsed {
+    grid-template-columns: 40px minmax(0, 1fr) minmax(340px, 360px);
+  }
+
+  .workspace-layout.right-collapsed {
+    grid-template-columns: minmax(320px, 360px) minmax(0, 1fr) 40px;
+  }
+
+  .workspace-layout.left-collapsed.right-collapsed {
+    grid-template-columns: 40px minmax(0, 1fr) 40px;
+  }
+}
+
+@media (min-width: 961px) and (max-width: 1280px) {
+
+  .workspace-layout,
+  .workspace-layout.left-collapsed,
+  .workspace-layout.right-collapsed,
+  .workspace-layout.left-collapsed.right-collapsed {
+    grid-template-columns: minmax(280px, 320px) minmax(0, 1fr);
+    gap: 10px;
+  }
+}
+
+@media (min-width: 961px) {
+
+  .map-column {
+    grid-template-rows: auto min-content minmax(0, 1fr);
+    grid-template-areas:
+      'map-summary'
+      'map-filters'
+      'map-canvas';
+    gap: 8px;
+  }
+}
