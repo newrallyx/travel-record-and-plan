@@ -291,3 +291,17 @@ test('unnumbered and non-adjacent parts are not merged by class alone', () => {
 
   assert.equal(merged.length, 5)
 })
+
+test('same-number entrance and mainline retain their navigation boundaries', () => {
+  const base = { roadClass: 'EXPRESSWAY', routeRef: 'G65', distanceMeters: 200, confidence: 'HIGH', source: 'ROAD_CODE' };
+  const input = [
+    { ...base, roadName: 'G65入口', instruction: '沿入口行驶200米' },
+    { ...base, roadName: 'G65包茂高速', distanceMeters: 5000 },
+    { ...base, roadName: 'G65包茂高速', distanceMeters: 6000 },
+    { ...base, roadName: 'G65出口', instruction: '沿出口行驶200米' },
+  ];
+  const merged = mergeAdjacentRoadParts(input);
+  assert.equal(merged.length, 3);
+  assert.deepEqual(merged.map(p => p.distanceMeters), [200, 11000, 200]);
+  assert.equal(merged[1].roadName, 'G65包茂高速');
+});

@@ -100,6 +100,7 @@ test('route search accepts spaced refs and sorts by current mileage', () => {
   const { current, allTrips, caches } = fixture()
   const rows = summarizeRoadStatisticsComparison([current], allTrips, caches).namedRoads
   assert.deepEqual(selectNamedRoadRows(rows, { query: 'G 65' }).map((row) => row.routeRef), ['G65'])
+  assert.deepEqual(selectNamedRoadRows(rows, { query: '满防线' }).map((row) => row.routeRef), ['G210'])
   assert.deepEqual(selectNamedRoadRows(rows, { direction: 'asc' }).map((row) => row.key), [
     'EXPRESSWAY:UNNUMBERED', 'PROVINCIAL_ROAD:PENDING:S101', 'NATIONAL_ROAD:G210', 'EXPRESSWAY:G65',
   ])

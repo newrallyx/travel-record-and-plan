@@ -1,0 +1,236 @@
+/* ---------- 地图评分图例 ---------- */
+
+.map-score-legend {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  z-index: 500;
+  min-width: 180px;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: var(--shadow-pop);
+  display: grid;
+  gap: 8px;
+  backdrop-filter: blur(10px);
+}
+
+.map-score-legend-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+  letter-spacing: 0.03em;
+}
+
+.map-score-legend-bar {
+  height: 10px;
+  border-radius: 999px;
+}
+
+.map-score-legend-scale {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--font-caption);
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.map-score-legend-note {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--font-caption);
+  color: var(--ink-3);
+}
+
+.map-score-legend-chip {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+}
+
+.map-road-type-legend {
+  width: min(340px, calc(100% - 28px));
+  bottom: 30px;
+  padding: 0;
+  gap: 0;
+  overflow: hidden;
+}
+
+.map-road-type-legend {
+  min-width: 0;
+}
+
+.map-frequency-key {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.map-frequency-key > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+}
+
+.map-frequency-key span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.map-frequency-key i {
+  display: inline-block;
+  width: 24px;
+  background: #64748b;
+  border-radius: 8px;
+}
+
+.map-frequency-key small {
+  color: var(--text-muted, #64748b);
+  font-size: var(--font-caption);
+}
+
+.map-direction-tooltip {
+  line-height: 1.65;
+}
+
+.map-direction-tooltip strong {
+  display: block;
+}
+
+.map-overview-frequency-legend {
+  max-width: min(470px, calc(100% - 24px));
+}
+
+.map-overview-frequency-legend .map-frequency-key {
+  margin-top: 0;
+}
+
+.map-road-type-legend > details > .map-frequency-key {
+  margin: 0;
+  padding: 10px 11px;
+  border-bottom: 1px solid var(--line);
+  font-size: var(--font-caption);
+}
+
+.map-road-type-key {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px 12px;
+  padding: 10px 11px;
+  border-bottom: 1px solid var(--line);
+  color: var(--ink-2);
+  font-size: var(--font-caption);
+}
+
+.map-road-type-key > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.map-road-type-key i {
+  width: 14px;
+  height: 3px;
+  border-radius: 2px;
+}
+
+.map-road-type-legend-toggle {
+  min-height: 40px;
+  padding: 9px 11px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--ink-2);
+  font-size: var(--font-caption);
+  font-weight: 700;
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+}
+
+.map-road-type-legend-toggle::-webkit-details-marker {
+  display: none;
+}
+
+.map-road-type-legend-toggle-main {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.map-road-type-legend-toggle-action::after {
+  content: '展开';
+  color: var(--ink-3);
+  font-size: var(--font-caption);
+  font-weight: 600;
+}
+
+.map-road-type-legend details[open] .map-road-type-legend-toggle-action::after {
+  content: '收起';
+}
+
+.map-road-type-legend details[open] .map-road-type-legend-toggle {
+  border-bottom: 1px solid var(--line);
+}
+
+.map-road-type-legend-body {
+  padding: 10px 12px 12px;
+  display: grid;
+  gap: 7px;
+}
+
+.map-road-type-legend-note {
+  color: var(--ink-3);
+  font-size: var(--font-caption);
+  line-height: 1.45;
+}
+
+.map-road-type-legend-list {
+  display: grid;
+  gap: 5px;
+}
+
+.map-road-type-legend-row {
+  display: grid;
+  grid-template-columns: 14px minmax(58px, auto) minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
+  font-size: var(--font-caption);
+  line-height: 1.35;
+}
+
+.map-road-type-legend-label {
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+
+.map-road-type-legend-distance {
+  color: var(--ink-3);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.map-road-type-legend-pending {
+  margin-top: 2px;
+  padding-top: 6px;
+  border-top: 1px solid var(--line);
+}
+
+.toll-refresh-button {
+  justify-self: start;
+}
+
+.map-overview-frequency-legend { padding: 8px 10px; min-width: 0; max-width: min(350px, calc(100% - 28px)); }
+.map-frequency-key { gap: 5px; font-size: var(--font-caption); }
+.map-frequency-key > div { gap: 5px 10px; }
+.map-frequency-key i { width: 18px; }
+.map-frequency-help summary { cursor: pointer; color: var(--ink-3); }
+.map-frequency-help small { display: block; margin-top: 6px; color: var(--ink-3); }

@@ -1,0 +1,101 @@
+/* ---------- 照片库修复 / 汇总 ---------- */
+
+.segment-photo-repair-panel {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid #fcd34d;
+  border-radius: 12px;
+  background: var(--warning-soft);
+}
+
+.segment-photo-repair-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.segment-photo-repair-row > span {
+  flex: 1 1 240px;
+}
+
+.segment-photo-repair-row select {
+  min-width: 220px;
+  max-width: 100%;
+}
+
+.photo-library-summary,
+.photo-gallery-controls,
+.photo-bulk-actions,
+.photo-consistency-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.photo-library-summary {
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+}
+
+.photo-library-summary > div:first-child {
+  display: grid;
+  min-width: 0;
+}
+
+.photo-library-summary span {
+  overflow: hidden;
+  color: var(--ink-3);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.photo-library-health-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.photo-library-health-grid span {
+  padding: 6px 8px;
+  border-radius: 10px;
+  background: var(--surface-3);
+  color: var(--ink-2);
+  text-align: center;
+  font-size: var(--font-caption);
+  font-weight: 600;
+}
+
+.photo-scan-issues {
+  padding: 9px 11px;
+  border: 1px solid #fcd34d;
+  border-radius: 10px;
+  background: var(--warning-soft);
+}
+
+.photo-scan-issues ul {
+  max-height: 180px;
+  margin: 8px 0 0;
+  overflow: auto;
+  padding-left: 20px;
+}
+
+.photo-gallery-controls input {
+  flex: 1 1 180px;
+}
+
+.photo-gallery-controls select {
+  min-width: 132px;
+}
+
+.photo-bulk-actions {
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--primary-soft);
+  border: 1px solid rgba(165, 180, 252, 0.4);
+}

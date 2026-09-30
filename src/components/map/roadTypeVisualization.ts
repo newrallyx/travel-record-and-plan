@@ -4,8 +4,9 @@ import type { RouteSegment, Trip } from '../../types/trip.ts'
 import type { RouteCacheRecord } from '../../services/routeCacheDb.ts'
 import { getRoadAnalysisFreshness } from '../../utils/routeBuildKey.ts'
 import type { SegmentTrack } from './types.ts'
+import { getTripYear } from '../../utils/tripYear.ts'
 
-/** 地图道路类型着色只显示四个稳定的大类；UNKNOWN 单独记为待核实。 */
+/** 里程统计保留四个已识别大类；UNKNOWN 单独记为待核实。 */
 export const ROAD_TYPE_MAP_CATEGORIES = [
   'EXPRESSWAY',
   'NATIONAL_ROAD',
@@ -15,31 +16,51 @@ export const ROAD_TYPE_MAP_CATEGORIES = [
 
 export type RoadTypeMapCategory = (typeof ROAD_TYPE_MAP_CATEGORIES)[number]
 
-export type RoadTypeVisibility = Record<RoadTypeMapCategory, boolean>
+export const ROAD_TYPE_VISIBILITY_CATEGORIES = [...ROAD_TYPE_MAP_CATEGORIES, 'UNKNOWN'] as const
+export type RoadTypeVisibilityCategory = (typeof ROAD_TYPE_VISIBILITY_CATEGORIES)[number]
+export type RoadTypeVisibility = Record<RoadTypeVisibilityCategory, boolean>
 
 export const DEFAULT_ROAD_TYPE_VISIBILITY: RoadTypeVisibility = {
   EXPRESSWAY: true,
   NATIONAL_ROAD: true,
   PROVINCIAL_ROAD: true,
   OTHER: true,
+  UNKNOWN: true,
 }
 
-export const ROAD_TYPE_MAP_LABELS: Readonly<Record<RoadTypeMapCategory, string>> = {
+export const ROAD_TYPE_MAP_LABELS: Readonly<Record<RoadTypeVisibilityCategory, string>> = {
   EXPRESSWAY: '高速公路',
   NATIONAL_ROAD: '国道',
   PROVINCIAL_ROAD: '省道',
   OTHER: '其他道路',
+  UNKNOWN: '未知道路',
 }
 
 /** 使用配置层的固定颜色，避免同一道路在地图和统计中出现颜色漂移。 */
-export const ROAD_TYPE_MAP_COLORS: Readonly<Record<RoadTypeMapCategory, string>> = {
+export const ROAD_TYPE_MAP_COLORS: Readonly<Record<RoadTypeVisibilityCategory, string>> = {
   EXPRESSWAY: ROAD_CLASS_COLORS.EXPRESSWAY,
   NATIONAL_ROAD: ROAD_CLASS_COLORS.NATIONAL_ROAD,
   PROVINCIAL_ROAD: ROAD_CLASS_COLORS.PROVINCIAL_ROAD,
   OTHER: ROAD_CLASS_COLORS.OTHER,
+  UNKNOWN: ROAD_CLASS_COLORS.UNKNOWN,
 }
 
 export const UNVERIFIED_ROAD_TYPE_COLOR = ROAD_CLASS_COLORS.UNKNOWN
+
+// z6 及以下为跨省概览，z8 为区域、z12 及以上为详细视图。
+const ROAD_TYPE_MAP_WEIGHTS: Record<RoadTypeMapCategory, readonly [number, number, number]> = {
+  EXPRESSWAY: [3.4, 3.8, 5],
+  NATIONAL_ROAD: [3, 3.4, 4.5],
+  PROVINCIAL_ROAD: [2.7, 3, 4],
+  OTHER: [2.4, 2.7, 3.5],
+}
+
+export function roadTypeWeightForCategory(category: RoadTypeMapCategory | null, zoom: number): number {
+  const [overview, regional, detail] = ROAD_TYPE_MAP_WEIGHTS[category ?? 'OTHER']
+  if (zoom <= 6) return overview
+  if (zoom < 8) return overview + (regional - overview) * (zoom - 6) / 2
+  return regional + (detail - regional) * Math.min(1, (zoom - 8) / 4)
+}
 
 export const OVERVIEW_MAX_ROAD_POLYLINES_PER_SEGMENT = 80
 
@@ -49,6 +70,7 @@ export interface RoadTypeDistanceTotals {
 }
 
 export interface RoadTypeLegendData {
+  overviewYear?: string
   current: RoadTypeDistanceTotals
   historical: RoadTypeDistanceTotals
   showCurrent: boolean
@@ -162,12 +184,14 @@ export function summarizeCurrentRoadTypeDistances(
 export function summarizeHistoricalRoadTypeDistances(
   trips: readonly Trip[],
   routeCaches: readonly RouteCacheRecord[],
+  year?: string,
 ): RoadTypeDistanceTotals {
   const totals = createRoadTypeDistanceTotals()
   const cacheMap = new Map(routeCaches.map((cache) => [cache.segmentId, cache]))
 
   for (const trip of trips) {
     if (trip.category !== 'review') continue
+    if (year && getTripYear(trip) !== year) continue
     for (const day of trip.days) {
       for (const segment of day.routeSegments) {
         if (!['DRIVING', 'CYCLING'].includes(segment.routeType ?? 'DRIVING')) continue

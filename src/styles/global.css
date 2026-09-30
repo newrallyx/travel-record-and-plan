@@ -4,6 +4,11 @@
    ============================================================ */
 
 :root {
+  --control-min-height: 38px;
+  --font-body: 14px;
+  --font-caption: 13px;
+  --font-heading: 16px;
+  --font-number: 20px;
   --bg: #eef1f7;
   --surface: #ffffff;
   --surface-2: #f8fafc;
@@ -11,7 +16,7 @@
 
   --ink: #0f172a;
   --ink-2: #334155;
-  --ink-3: #64748b;
+  --ink-3: #58677d;
   --muted: #94a3b8;
 
   --line: #e4e9f2;
@@ -19,6 +24,8 @@
   --line-3: #aab4c9;
 
   --primary: #4f46e5;
+  --on-primary: #ffffff;
+  --focus-ring: #4f46e5;
   --primary-strong: #4338ca;
   --primary-soft: #eef2ff;
   --primary-softer: #f5f7ff;
@@ -26,18 +33,23 @@
   --primary-line: #a5b4fc;
 
   --danger: #e11d48;
+  --danger-strong: #be123c;
   --danger-soft: #fff1f2;
   --success: #059669;
   --success-soft: #ecfdf5;
   --warning: #d97706;
   --warning-soft: #fffbeb;
+  --warning-text: #b45309;
+  --success-text: #047857;
 
   --radius-lg: 14px;
   --radius-md: 10px;
+  --radius-panel: 12px;
   --radius-sm: 8px;
 
   --shadow-card: 0 1px 2px rgba(16, 24, 40, 0.06), 0 6px 16px -14px rgba(16, 24, 40, 0.18);
   --shadow-card-hover: 0 2px 4px rgba(16, 24, 40, 0.08), 0 10px 22px -14px rgba(16, 24, 40, 0.2);
+  --shadow-focus: 0 0 0 3px rgba(99, 102, 241, 0.16);
   --shadow-pop:
     0 18px 48px -12px rgba(16, 24, 40, 0.28),
     0 4px 14px -6px rgba(16, 24, 40, 0.12);
@@ -105,17 +117,10 @@ body {
   background: transparent;
 }
 
-:focus-visible {
-  outline: 2px solid rgba(99, 102, 241, 0.65);
+/* 保留独立轮廓，避免选中态或无阴影控件吞掉键盘焦点。 */
+:root :focus-visible:not(:disabled) {
+  outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
-}
-
-/* 表单控件已有自定义焦点环（box-shadow ring），关闭默认 outline 避免双重指示 */
-button:focus-visible,
-input:focus-visible,
-select:focus-visible,
-textarea:focus-visible {
-  outline: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -141,7 +146,7 @@ textarea:focus-visible {
 
     --ink: #e6ebf5;
     --ink-2: #c3cde0;
-    --ink-3: #8b98b3;
+    --ink-3: #9aa8c1;
     --muted: #64748b;
 
     --line: rgba(148, 163, 184, 0.14);
@@ -149,6 +154,8 @@ textarea:focus-visible {
     --line-3: rgba(148, 163, 184, 0.5);
 
     --primary: #818cf8;
+    --on-primary: #0b1120;
+    --focus-ring: #a5b4fc;
     --primary-strong: #a5b4fc;
     --primary-soft: rgba(99, 102, 241, 0.18);
     --primary-softer: rgba(99, 102, 241, 0.1);
@@ -156,11 +163,15 @@ textarea:focus-visible {
     --primary-line: rgba(165, 180, 252, 0.5);
 
     --danger: #fb7185;
+    --danger-strong: #fda4af;
     --danger-soft: rgba(225, 29, 72, 0.16);
     --success: #34d399;
     --success-soft: rgba(5, 150, 105, 0.16);
     --warning: #fbbf24;
     --warning-soft: rgba(217, 119, 6, 0.16);
+    --warning-text: #fbbf24;
+    --success-text: #6ee7b7;
+    --shadow-focus: 0 0 0 3px rgba(165, 180, 252, 0.24);
 
     --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 20px -14px rgba(0, 0, 0, 0.45);
     --shadow-card-hover: 0 2px 4px rgba(0, 0, 0, 0.35), 0 12px 26px -14px rgba(0, 0, 0, 0.5);

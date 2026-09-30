@@ -231,7 +231,10 @@ export class PhotoMetadataStore {
     const root = normalizePhotoLibraryRoot(rootValue)
     return this.mutate((state) => {
       const existingIndex = state.roots.findIndex((item) => item.id === root.id)
-      const duplicatePath = state.roots.find((item) => item.id !== root.id && item.path === root.path)
+      const duplicatePath = state.roots.find((item) => (
+        item.id !== root.id && item.path === root.path
+        && (!item.tripId || !root.tripId || item.tripId === root.tripId)
+      ))
       if (duplicatePath) return duplicatePath
 
       if (existingIndex >= 0) {
@@ -266,7 +269,11 @@ export class PhotoMetadataStore {
       const existingIndex = state.roots.findIndex((root) => root.id === normalizedRootId)
       if (existingIndex < 0) throw new Error('Photo library root was not found.')
       const canonicalPath = path.normalize(normalizedPath)
-      if (state.roots.some((root) => root.id !== normalizedRootId && root.path === canonicalPath)) {
+      const existingRoot = state.roots[existingIndex]
+      if (state.roots.some((root) => (
+        root.id !== normalizedRootId && root.path === canonicalPath
+        && (!root.tripId || !existingRoot.tripId || root.tripId === existingRoot.tripId)
+      ))) {
         throw new Error('Another photo library root already uses this path.')
       }
 

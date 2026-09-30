@@ -66,6 +66,42 @@ test('photo metadata persists roots and linked photos across store instances', a
   assert.equal(persisted.version, 1)
 })
 
+test('trips sharing a folder retain independent photo records after reopening and deleting a trip', async (t) => {
+  const { filePath, store } = await createStoreFixture(t)
+  const root = createRoot(path.join(path.dirname(filePath), 'phone-album'))
+  await store.saveRoot(root)
+  const secondRoot = { ...root, id: 'root-2', tripId: 'trip-2' }
+  assert.deepEqual(await store.saveRoot(secondRoot), secondRoot)
+  await store.savePhotos([
+    createPhoto({ note: 'First trip' }),
+    createPhoto({ id: 'photo-2', libraryRootId: 'root-2', segmentId: 'segment-2', note: 'Second trip' }),
+  ])
+
+  const reopened = new PhotoMetadataStore(filePath)
+  assert.equal((await reopened.listRoots()).length, 2)
+  assert.deepEqual((await reopened.listPhotosByRoot('root-1')).map((photo) => photo.id), ['photo-1'])
+  assert.deepEqual((await reopened.listPhotosBySegment('segment-2')).map((photo) => photo.id), ['photo-2'])
+  await reopened.deleteTripData('trip-1', ['segment-1'])
+  assert.deepEqual(await reopened.listRoots(), [secondRoot])
+  assert.equal((await reopened.getPhoto('photo-2')).note, 'Second trip')
+})
+
+test('relinking to another trip folder preserves both bindings and rejects same-trip duplicates', async (t) => {
+  const { filePath, store } = await createStoreFixture(t)
+  const root = createRoot(path.join(path.dirname(filePath), 'phone-album'))
+  await store.saveRoot(root)
+  await store.saveRoot({ ...root, id: 'root-2', tripId: 'trip-2', path: `${root.path}-old` })
+  await store.savePhoto(createPhoto({ id: 'photo-2', libraryRootId: 'root-2' }))
+  const updated = await store.relinkRoot('root-2', root.path, root.updatedAt)
+  assert.equal(updated.tripId, 'trip-2')
+  assert.deepEqual(await store.getRoot('root-1'), root)
+  assert.equal((await store.getPhoto('photo-2')).libraryRootId, 'root-2')
+
+  await store.saveRoot({ ...root, id: 'root-3', path: `${root.path}-other` })
+  await assert.rejects(store.relinkRoot('root-3', root.path, root.updatedAt), /already uses this path/)
+  assert.equal((await store.saveRoot({ ...root, id: 'duplicate' })).id, root.id)
+})
+
 test('photo metadata persists the thumbnail generator cache version', async (t) => {
   const { filePath, store } = await createStoreFixture(t)
   await store.saveRoot(createRoot(path.join(path.dirname(filePath), 'photos')))

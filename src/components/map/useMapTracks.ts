@@ -290,5 +290,12 @@ export function useMapTracks({
     routeRefreshRequest,
   ])
 
-  return { tracks, loading, message }
+  // Filters change before the asynchronous cache read finishes. Never expose the
+  // previous overview's full geometry to the newly selected detail view.
+  const visibleTracks = useMemo(() => {
+    const ids = new Set(filteredSegments.map((segment) => segment.id))
+    return tracks.filter((track) => ids.has(track.segmentId))
+  }, [tracks, filteredSegments])
+
+  return { tracks: visibleTracks, loading, message }
 }

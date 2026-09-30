@@ -1,0 +1,85 @@
+/* ---------- 统一确认 / 提示 / 输入对话框 ---------- */
+
+.confirm-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 4000;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(15, 23, 42, 0.5);
+  backdrop-filter: blur(5px);
+  animation: fade-in 0.16s ease both;
+}
+
+.confirm-dialog {
+  width: min(440px, 100%);
+  padding: 20px 22px;
+  border: 1px solid var(--line-2);
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: 0 24px 70px -14px rgba(15, 23, 42, 0.45);
+  animation: dialog-in 0.2s cubic-bezier(0.2, 0.7, 0.3, 1) both;
+}
+
+.confirm-dialog-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.confirm-dialog-header h2 {
+  margin: 0;
+  font-size: 16px;
+  color: var(--ink);
+  letter-spacing: 0.02em;
+}
+
+.confirm-dialog-close {
+  min-width: 30px;
+  padding: 2px 8px;
+  border: none;
+  background: transparent;
+  color: var(--ink-3);
+  font-size: 22px;
+  line-height: 1;
+  border-radius: 8px;
+}
+
+.confirm-dialog-close:hover:not(:disabled) {
+  background: var(--surface-3);
+  color: var(--ink);
+}
+
+.confirm-dialog-message {
+  margin: 12px 0 0;
+  color: var(--ink-2);
+  font-size: var(--font-body);
+  line-height: 1.7;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.confirm-dialog-input {
+  display: grid;
+  gap: 6px;
+  margin-top: 14px;
+}
+
+.confirm-dialog-input span {
+  color: var(--ink-3);
+  font-size: var(--font-caption);
+  font-weight: 600;
+}
+
+.confirm-dialog-input input {
+  width: 100%;
+}
+
+.confirm-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 20px;
+}

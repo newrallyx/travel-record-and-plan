@@ -1,7 +1,9 @@
 import { normalizeRoadText } from './roadClassifier.ts'
+import { nationalRoadDisplayName } from '../config/nationalRoadNames.ts'
+import type { RoadClass } from '../types/roadStatistics.ts'
 
 /** Presentation only: keep original names and road identities untouched. */
-export function presentRoadNames(roadNames: readonly string[], routeRef: string | null) {
+export function presentRoadNames(roadNames: readonly string[], routeRef: string | null, roadClass?: RoadClass) {
   const conflicts: string[] = []
   const names = new Set<string>()
   for (const original of roadNames) {
@@ -21,5 +23,6 @@ export function presentRoadNames(roadNames: readonly string[], routeRef: string 
     const label = routeRef ? name.replace(new RegExp(`^${routeRef[0]}[-\\s]*${routeRef.slice(1)}(?!\\d)\\s*`), '').trim() : name
     if (label) names.add(label)
   }
-  return { summary: [...names].slice(0, 2).join('、'), conflicts }
+  return { summary: roadClass ? nationalRoadDisplayName(routeRef, roadClass) ?? [...names].slice(0, 2).join('、')
+    : [...names].slice(0, 2).join('、'), conflicts }
 }

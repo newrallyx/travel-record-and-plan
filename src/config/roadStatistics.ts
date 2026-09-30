@@ -34,8 +34,8 @@ export const ROAD_CLASS_COLORS = {
   TOWNSHIP_ROAD: '#14b8a6',
   VILLAGE_ROAD: '#06b6d4',
   URBAN_ROAD: '#3b82f6',
-  OTHER: '#7c3aed',
-  UNKNOWN: '#94a3b8',
+  OTHER: '#7250a0',
+  UNKNOWN: '#64748b',
 } as const satisfies Readonly<Record<RoadClass, string>>
 
 /** 单次旅程里程档位，单位为米。 */

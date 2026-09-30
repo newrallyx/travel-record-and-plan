@@ -1,0 +1,62 @@
+/* ---------- 旅程卡片拖拽排序反馈 ---------- */
+
+.trip-manage-item.dragging {
+  opacity: 0.45;
+  box-shadow: none;
+}
+
+.trip-manage-item.drag-target {
+  border-color: var(--primary) !important;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.18) !important;
+}
+
+/* ---------- 照片查看器缩放控制 ---------- */
+
+.photo-viewer-zoom-controls button {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+}
+
+.photo-viewer-zoom-controls .icon-inline {
+  width: 15px;
+  height: 15px;
+}
+
+.photo-viewer-zoom-controls span {
+  min-width: 44px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.zoom-control-divider {
+  width: 1px;
+  height: 16px;
+  min-width: 0 !important;
+  background: var(--line);
+  margin: 0 2px;
+}
+
+/* ---------- 数字等宽排版 ---------- */
+
+.filter-stats-row p,
+.route-item-meta,
+.segment-detail-readonly-grid strong,
+.photo-viewer-header span {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- 帮助菜单 ---------- */
+
+.help-menu-version {
+  margin: 0;
+  padding-top: 6px;
+  border-top: 1px solid var(--line);
+  color: var(--ink-3);
+  font-size: var(--font-caption);
+  line-height: 1.5;
+  text-align: center;
+}

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useFocusTrap } from '../hooks/useFocusTrap'
 import type { PhotoLibraryScanFile } from '../types/photo'
 import PhotoCandidateCard from './PhotoCandidateCard'
@@ -89,7 +90,8 @@ function PhotoCandidatePickerDialog({
     })
   }
 
-  return (
+  // Keep the viewport overlay outside the album panel's clipping/containing block.
+  return createPortal(
     <div className="photo-candidate-picker-backdrop" role="presentation">
       <section ref={dialogRef} className="photo-candidate-picker-dialog" role="dialog" aria-modal="true" aria-label="选择要关联的照片">
         <header className="photo-candidate-picker-header">
@@ -168,7 +170,8 @@ function PhotoCandidatePickerDialog({
           </div>
         </footer>
       </section>
-    </div>
+    </div>,
+    document.body,
   )
 }
 

@@ -29,6 +29,8 @@ function RoadbookCoverImage({ photo }: { photo: LinkedPhotoRecord }) {
     if (!element) return
     let cancelled = false
     let objectUrl = ''
+    setThumbnailUrl('')
+    setLoadFailed(false)
 
     const loadThumbnail = async () => {
       try {
@@ -73,15 +75,54 @@ function RoadbookCoverImage({ photo }: { photo: LinkedPhotoRecord }) {
   )
 }
 
+/** 仅使用已有轨迹或端点生成封面轮廓，不请求路线、不连接无关路段。 */
+function RoadbookPlaceholderCover({ trip, item }: { trip?: Trip; item: TripBookItem }) {
+  const paths = useMemo(() => {
+    const tracks = (trip?.days.flatMap(day => day.routeSegments) ?? []).map(segment => {
+      const points = segment.points?.length ? segment.points : [segment.startCoord, segment.endCoord].filter(Boolean)
+      const stride = Math.max(1, Math.ceil(points.length / 80))
+      return points.filter((point, index) => point && Number.isFinite(point.lat) && Number.isFinite(point.lon) && (index % stride === 0 || index === points.length - 1)) as { lat: number; lon: number }[]
+    }).filter(points => points.length > 1)
+    const points = tracks.flat()
+    if (!points.length) return []
+    const xs = points.map(p => p.lon), ys = points.map(p => p.lat)
+    const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys)
+    const longitudeScale = Math.max(.1, Math.cos((minY + maxY) * Math.PI / 360))
+    const width = (maxX - minX) * longitudeScale, height = maxY - minY
+    const scale = Math.min(260 / (width || 1), 110 / (height || 1))
+    return tracks.map(track => track.map(p => [150 + ((p.lon - minX) * longitudeScale - width / 2) * scale, 70 - (p.lat - minY - height / 2) * scale].join(',')).join(' '))
+  }, [trip])
+  return <span className="roadbook-placeholder-art" aria-hidden="true">
+    <span className="roadbook-placeholder-date">{item.startDate || '日期待补全'} · {item.dayCount} 天</span>
+    {paths.length > 0 && <svg viewBox="0 0 300 140" preserveAspectRatio="xMidYMid meet">{paths.map((points, index) => <polyline key={index} points={points} />)}</svg>}
+    <strong>{item.title}</strong>
+    <span className="roadbook-placeholder-caption">{paths.length ? '路线轮廓' : '旅程手记'} · {item.segmentCount} 段旅途</span>
+  </span>
+}
+
 interface RoadbookLibraryViewProps {
   trips: Trip[]
   items: TripBookItem[]
   onOpenTrip: (tripId: string) => void
+  isReadonlyMode: boolean
+  onSetCoverPhoto: (tripId: string, photoId: string | null) => void
 }
 
-function RoadbookLibraryView({ trips, items, onOpenTrip }: RoadbookLibraryViewProps) {
+function RoadbookLibraryView({ trips, items, onOpenTrip, isReadonlyMode, onSetCoverPhoto }: RoadbookLibraryViewProps) {
   const [filter, setFilter] = useState<RoadbookFilterState>(ROADBOOK_EMPTY_FILTER)
-  const { coverByTrip } = useRoadbookLibraryPhotos(trips)
+  const { coverByTrip, photosByTrip, desktopAvailable, isLoading, loadError } = useRoadbookLibraryPhotos(trips)
+  const [coverTripId, setCoverTripId] = useState<string | null>(null)
+  const coverDialogRef = useRef<HTMLDialogElement>(null)
+  useEffect(() => {
+    if (coverTripId) coverDialogRef.current?.showModal()
+    else coverDialogRef.current?.close()
+  }, [coverTripId])
+  const selectCover = (photoId: string | null) => {
+    if (!coverTripId || isReadonlyMode) return
+    onSetCoverPhoto(coverTripId, photoId)
+    setCoverTripId(null)
+  }
+  const tripById = useMemo(() => new Map(trips.map(trip => [trip.id, trip])), [trips])
 
   const years = useMemo(() => getTripYears(trips), [trips])
   const availableTags = useMemo(() => getTripTags(trips), [trips])
@@ -199,9 +240,7 @@ function RoadbookLibraryView({ trips, items, onOpenTrip }: RoadbookLibraryViewPr
                   {coverPhoto ? (
                     <RoadbookCoverImage photo={coverPhoto} />
                   ) : (
-                    <span className="roadbook-cover-mark" aria-hidden="true">
-                      <AppIcon name="route" className="icon-inline" />
-                    </span>
+                    <RoadbookPlaceholderCover trip={tripById.get(item.id)} item={item} />
                   )}
                 </button>
                 <div className="roadbook-card-body">
@@ -215,6 +254,9 @@ function RoadbookLibraryView({ trips, items, onOpenTrip }: RoadbookLibraryViewPr
                     {item.photoCount > 0 ? ` · 照片 ${item.photoCount} 张` : ''}
                   </p>
                   <div className="roadbook-card-actions">
+                    {!isReadonlyMode && <button type="button" className="btn-secondary" onClick={() => setCoverTripId(item.id)}>
+                      更换封面
+                    </button>}
                     <button type="button" className="btn-primary" onClick={() => onOpenTrip(item.id)}>
                       打开路书
                     </button>
@@ -225,6 +267,28 @@ function RoadbookLibraryView({ trips, items, onOpenTrip }: RoadbookLibraryViewPr
           })}
         </ul>
       )}
+      <dialog ref={coverDialogRef} className="roadbook-cover-picker" onCancel={() => setCoverTripId(null)} onClose={() => setCoverTripId(null)} aria-labelledby="roadbook-cover-picker-title">
+        <h2 id="roadbook-cover-picker-title">选择封面 · {coverTripId ? tripById.get(coverTripId)?.title : ''}</h2>
+        <p className="hint-text">点击该旅程中的照片即可保存为封面，照片将完整显示。</p>
+        <div className="roadbook-cover-picker-actions">
+          <button type="button" className="btn-secondary" onClick={() => selectCover(null)}>恢复默认封面</button>
+          <button type="button" className="btn-secondary" onClick={() => setCoverTripId(null)}>关闭</button>
+        </div>
+        {!desktopAvailable ? <p>请在桌面版中选择封面照片。</p>
+          : isLoading ? <p role="status">正在加载照片…</p>
+          : loadError ? <p role="alert">{loadError}</p>
+          : <div className="roadbook-cover-picker-grid">
+            {(photosByTrip.get(coverTripId ?? '') ?? []).map(photo => <button
+              type="button" key={photo.id} className="roadbook-cover-choice"
+              aria-pressed={coverByTrip.get(coverTripId ?? '')?.id === photo.id}
+              onClick={() => selectCover(photo.id)}
+            >
+              <span className="roadbook-cover-choice-image"><RoadbookCoverImage photo={photo} /></span>
+              <span>{photo.originalFilename}</span>
+            </button>)}
+            {!photosByTrip.get(coverTripId ?? '')?.length && <p>该旅程暂无照片，请先在相册中关联照片。</p>}
+          </div>}
+      </dialog>
     </section>
   )
 }

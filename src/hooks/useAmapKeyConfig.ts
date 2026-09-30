@@ -5,12 +5,23 @@ import {
   type AmapKeySource,
 } from '../services/amapKeyConfig'
 
+const GUIDE_DISMISSED_KEY = 'roadtrip:amap-guide-dismissed:v1'
+
+function hasDismissedGuide() {
+  try { return localStorage.getItem(GUIDE_DISMISSED_KEY) === '1' } catch { return false }
+}
+
+function dismissGuide() {
+  try { localStorage.setItem(GUIDE_DISMISSED_KEY, '1') } catch { /* 存储不可用时仍允许关闭。 */ }
+}
+
 export function useAmapKeyConfig(enabled: boolean) {
   const [configured, setConfigured] = useState(false)
   const [source, setSource] = useState<AmapKeySource>(null)
   const [isChecking, setIsChecking] = useState(enabled)
   const [isSaving, setIsSaving] = useState(false)
   const [isOpen, setIsOpen] = useState(false)
+  const [initialPage, setInitialPage] = useState<'config' | 'guide'>('config')
   const [error, setError] = useState('')
   const [serviceRevision, setServiceRevision] = useState(0)
 
@@ -22,7 +33,10 @@ export function useAmapKeyConfig(enabled: boolean) {
       const status = await getAmapKeyStatus()
       setConfigured(status.configured)
       setSource(status.source)
-      if (!status.configured) setIsOpen(true)
+      if (!status.configured && !hasDismissedGuide()) {
+        setInitialPage('guide')
+        setIsOpen(true)
+      }
     } catch (requestError) {
       setConfigured(false)
       setSource(null)
@@ -50,6 +64,7 @@ export function useAmapKeyConfig(enabled: boolean) {
       setConfigured(status.configured)
       setSource(status.source)
       setServiceRevision((current) => current + 1)
+      dismissGuide()
       setIsOpen(false)
       return true
     } catch (requestError) {
@@ -62,10 +77,12 @@ export function useAmapKeyConfig(enabled: boolean) {
 
   const open = useCallback(() => {
     setError('')
+    setInitialPage('config')
     setIsOpen(true)
   }, [])
 
   const close = useCallback(() => {
+    dismissGuide()
     setIsOpen(false)
   }, [])
 
@@ -75,6 +92,7 @@ export function useAmapKeyConfig(enabled: boolean) {
     isChecking,
     isSaving,
     isOpen,
+    initialPage,
     error,
     serviceRevision,
     open,

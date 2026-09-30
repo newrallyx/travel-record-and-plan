@@ -8,6 +8,7 @@ import type {
   TripStatisticsSummary,
 } from '../types/tripStatistics.ts'
 import { normalizeRoadText } from './roadClassifier.ts'
+import { nationalRoadDisplayName } from '../config/nationalRoadNames.ts'
 import { summarizeReviewTripStatistics, summarizeTripSetStatistics } from './tripStatistics.ts'
 
 const COMPOSITION_GROUPS = [
@@ -147,7 +148,7 @@ export function selectNamedRoadRows(
   return rows.filter((row) => (!currentOnly || row.currentRoadPartCount > 0)
     && (roadClass === 'ALL' || row.roadClass === roadClass)
     && (province === 'ALL' || (row.provinceCode ?? row.provinceStatus) === province)
-    && (!normalizedQuery || [row.routeRef ?? '', ...(row.routeRefs ?? []), row.provinceName ?? '', ...(row.roadNames ?? [])]
+    && (!normalizedQuery || [row.routeRef ?? '', nationalRoadDisplayName(row.routeRef, row.roadClass) ?? '', ...(row.routeRefs ?? []), row.provinceName ?? '', ...(row.roadNames ?? [])]
       .some((value) => normalizeRoadText(value).replace(/[\s-]+/g, '').includes(normalizedQuery))))
     .sort((left, right) => {
       const a = left.currentDistanceMeters

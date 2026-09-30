@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { isReadonlyDemoMode } from '../config/appMode'
 import type {
   FilterState,
   RouteColorMode,
@@ -12,6 +11,7 @@ import type {
 import { formatDistance, getDayDistanceMeters, getTrackDistanceMeters, getTripDistanceMeters } from '../utils/distance'
 import { formatDurationSummary, summarizeEstimatedDurations } from '../utils/durations'
 import { sortTripsByOrder } from '../utils/tripOrder'
+import { filterTripsByYear, getSelectedYear } from '../utils/tripYear'
 import { formatTollSummary, summarizeEstimatedTolls } from '../utils/tolls'
 import { useFilteredSegments } from './useFilteredSegments'
 import {
@@ -71,9 +71,11 @@ export function useTripWorkspace({
   )
 
   const isAllTripsSelected = !filters.tripId
+  const selectedYear = getSelectedYear(workspaceTrips, filters)
+  const yearTrips = useMemo(() => filterTripsByYear(workspaceTrips, selectedYear), [workspaceTrips, selectedYear])
   const canUseScoreColoring = !isAllTripsSelected
   const placeholderMode: 'trip-list' | 'segment-list' = isAllTripsSelected ? 'trip-list' : 'segment-list'
-  const mapRenderSegments = useFilteredSegments(workspaceTrips, filters)
+  const mapRenderSegments = useFilteredSegments(yearTrips, filters)
   const listViewSegments = placeholderMode === 'segment-list' ? mapRenderSegments : []
 
   const segmentDayDateMap = useMemo(() => {
@@ -120,9 +122,9 @@ export function useTripWorkspace({
       return
     }
 
-    if (isReadonlyDemoMode && !currentFilters.tripId) {
+    if (!currentFilters.tripId) {
       if (currentFilters.dayId || currentFilters.segmentId) {
-        setFilters({ tripId: '', dayId: '', segmentId: '' })
+        setFilters({ year: currentFilters.year, tripId: '', dayId: '', segmentId: '' })
         resetEditingState()
       }
       return
@@ -134,6 +136,7 @@ export function useTripWorkspace({
       selectedDay?.routeSegments.find((segment) => segment.id === currentFilters.segmentId) ?? selectedDay?.routeSegments[0]
 
     const nextFilters: FilterState = {
+      year: currentFilters.year,
       tripId: selectedTrip.id,
       dayId: selectedDay?.id ?? '',
       segmentId: selectedSegment?.id ?? '',
@@ -147,7 +150,7 @@ export function useTripWorkspace({
       setFilters(nextFilters)
       resetEditingState()
     }
-  }, [activeWorkspace, workspaceTrips, isReadonlyDemoMode, resetEditingState, setFilters])
+  }, [activeWorkspace, workspaceTrips, resetEditingState, setFilters])
 
   useEffect(() => {
     if (canUseScoreColoring || routeColorMode === 'default' || routeColorMode === 'roadType') return
@@ -169,7 +172,7 @@ export function useTripWorkspace({
 
   const tripListItems = useMemo(
     () =>
-      workspaceTrips.map((trip) => ({
+      yearTrips.map((trip) => ({
         id: trip.id,
         title: trip.title,
         startDate: trip.startDate,
@@ -179,7 +182,7 @@ export function useTripWorkspace({
         tripDurationText: formatDurationSummary(summarizeEstimatedDurations(trip.days.flatMap((day) => day.routeSegments))),
         tripTollText: formatTollSummary(summarizeEstimatedTolls(trip.days.flatMap((day) => day.routeSegments))),
       })),
-    [workspaceTrips],
+    [yearTrips],
   )
 
   const tripBookItems = useMemo<TripBookItem[]>(
@@ -199,25 +202,30 @@ export function useTripWorkspace({
     [workspaceTrips],
   )
 
+  const summarySegments = useMemo(
+    () => (selectedTrip ? [selectedTrip] : selectedYear ? yearTrips : [])
+      .flatMap((trip) => trip.days.flatMap((day) => day.routeSegments)),
+    [selectedTrip, selectedYear, yearTrips],
+  )
   const tripDistanceText = useMemo(
-    () => formatDistance(selectedTrip ? getTripDistanceMeters(selectedTrip) : null),
-    [selectedTrip],
+    () => formatDistance(getDayDistanceMeters(summarySegments)),
+    [summarySegments],
   )
   const dayDistanceText = useMemo(
     () => formatDistance(selectedDay ? getDayDistanceMeters(selectedDay.routeSegments) : null),
     [selectedDay],
   )
   const tripTollText = useMemo(
-    () => formatTollSummary(summarizeEstimatedTolls(selectedTrip?.days.flatMap((day) => day.routeSegments) ?? [])),
-    [selectedTrip],
+    () => formatTollSummary(summarizeEstimatedTolls(summarySegments)),
+    [summarySegments],
   )
   const dayTollText = useMemo(
     () => formatTollSummary(summarizeEstimatedTolls(selectedDay?.routeSegments ?? [])),
     [selectedDay],
   )
   const tripDurationText = useMemo(
-    () => formatDurationSummary(summarizeEstimatedDurations(selectedTrip?.days.flatMap((day) => day.routeSegments) ?? [])),
-    [selectedTrip],
+    () => formatDurationSummary(summarizeEstimatedDurations(summarySegments)),
+    [summarySegments],
   )
   const dayDurationText = useMemo(
     () => formatDurationSummary(summarizeEstimatedDurations(selectedDay?.routeSegments ?? [])),
@@ -230,11 +238,11 @@ export function useTripWorkspace({
     const currentSegment = currentDay?.routeSegments.find((segment) => segment.id === filters.segmentId)
 
     return {
-      tripName: currentTrip?.title ?? '全部旅程',
+      tripName: currentTrip?.title ?? (selectedYear ? `${selectedYear === 'unknown' ? '未注明年份' : `${selectedYear}年`}全部旅程` : '全部旅程'),
       dayDate: currentDay?.date ?? '全部日期',
       segmentName: currentSegment?.name ?? '全部路段',
     }
-  }, [workspaceTrips, filters.tripId, filters.dayId, filters.segmentId])
+  }, [workspaceTrips, filters.tripId, filters.dayId, filters.segmentId, selectedYear])
 
   const summary: RouteSummary = useMemo(
     () => ({

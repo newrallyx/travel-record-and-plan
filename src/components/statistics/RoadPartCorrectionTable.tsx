@@ -7,6 +7,7 @@ export interface RoadPartCorrectionDraft {
   roadClass: RoadClass
   routeRef: string
   provinceCode: string
+  manualDirection: string
 }
 
 interface Props {
@@ -92,7 +93,7 @@ export default function RoadPartCorrectionTable({ parts, drafts, disabled, onDra
           anchor.current = null
         }}>取消选择</button>
         <button type="button" className="btn-primary" disabled={disabled || selected.size === 0} onClick={() => onSave([...selected].sort((a, b) => a - b))}>保存选中</button>
-        <span>勾选多段、Shift 连选，或从选择列拖动框选；修改任意已选行的类型或编号，将同步到所有选中行。</span>
+        <span>勾选多段、Shift 连选，或从选择列拖动框选；修改任意已选行的类型、编号或省份，将同步到所有选中行。</span>
       </div>
       <div className="statistics-table-wrap road-correction-selection-wrap"
         onPointerDown={(event) => {
@@ -131,7 +132,7 @@ export default function RoadPartCorrectionTable({ parts, drafts, disabled, onDra
             <th scope="col">道路片段</th><th scope="col">道路类型</th><th scope="col">道路编号</th><th scope="col">省份</th><th scope="col">操作</th>
           </tr></thead>
           <tbody>{parts.map((part, index) => {
-            const draft = drafts[index] ?? { roadClass: part.roadClass, routeRef: part.routeRef ?? '', provinceCode: part.provinceCode ?? '' }
+            const draft = drafts[index] ?? { roadClass: part.roadClass, routeRef: part.routeRef ?? '', provinceCode: part.provinceCode ?? '', manualDirection: part.manualDirection ?? '' }
             const name = part.roadName ?? part.tollRoad ?? '未命名道路'
             const provinceText = isProvinceSensitiveRoadPart(part)
               ? ` · ${part.provinceStatus === 'confirmed' ? part.provinceName ?? part.provinceCode ?? '已归属' : '省份待确认'}`

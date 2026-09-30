@@ -137,11 +137,11 @@ function registerPhotoLibraryIpc() {
     if (result.canceled || result.filePaths.length === 0) return null
 
     const rootPath = await realpath(result.filePaths[0])
-    const existingRoot = Array.from(authorizedPhotoLibraryRoots.values()).find((root) => root.path === rootPath)
+    // Each trip owns its binding and photo records, even when the folder is shared.
+    const existingRoot = Array.from(authorizedPhotoLibraryRoots.values()).find((root) => (
+      root.path === rootPath && (!root.tripId || root.tripId === tripId)
+    ))
     if (existingRoot) {
-      if (existingRoot.tripId && existingRoot.tripId !== tripId) {
-        throw new Error('This photo library folder already belongs to another trip.')
-      }
       if (!existingRoot.tripId) {
         const claimedRoot = await getPhotoMetadataStore().saveRoot({
           ...existingRoot,
@@ -153,7 +153,9 @@ function registerPhotoLibraryIpc() {
       }
       return existingRoot
     }
-    if (Array.from(authorizedPhotoLibraryRoots.values()).some((root) => photoLibraryPathsOverlap(root.path, rootPath))) {
+    if (Array.from(authorizedPhotoLibraryRoots.values()).some((root) => (
+      (!root.tripId || root.tripId === tripId) && photoLibraryPathsOverlap(root.path, rootPath)
+    ))) {
       throw new Error('The selected folder overlaps an existing photo library. Choose a separate folder.')
     }
 
@@ -405,7 +407,9 @@ function registerPhotoLibraryIpc() {
 
     const nextPath = await realpath(result.filePaths[0])
     if (Array.from(authorizedPhotoLibraryRoots.values()).some((candidate) => (
-      candidate.id !== root.id && photoLibraryPathsOverlap(candidate.path, nextPath)
+      candidate.id !== root.id
+      && (!candidate.tripId || !root.tripId || candidate.tripId === root.tripId)
+      && photoLibraryPathsOverlap(candidate.path, nextPath)
     ))) {
       throw new Error('The selected folder overlaps another photo library.')
     }

@@ -138,6 +138,7 @@ function buildManualPart(
     ...(annotation.routeRef ? { routeRef: annotation.routeRef } : {}),
     confidence: 'HIGH',
     source: 'MANUAL',
+    ...(annotation.manualDirection ? { manualDirection: annotation.manualDirection } : {}),
     distanceMeters,
     distanceSource: annotation.distanceSource ?? distanceSource,
     ...(provinceSensitive

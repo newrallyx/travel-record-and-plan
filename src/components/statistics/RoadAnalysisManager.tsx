@@ -21,8 +21,10 @@ import {
 import type { ResolvedRoutePatch } from '../map/types.ts'
 import type { Trip } from '../../types/trip.ts'
 import { sortTripsByStartDate } from '../../utils/tripOrder.ts'
+import { sortTripDaysByDate } from '../../utils/date.ts'
 import RoadPartCorrectionTable, { type RoadPartCorrectionDraft } from './RoadPartCorrectionTable.tsx'
 import RoadIntervalAnnotationPanel from './RoadIntervalAnnotationPanel.tsx'
+import { normalizeManualDirection } from '../../utils/manualRoadDirection.ts'
 
 interface RoadAnalysisManagerProps {
   trips: readonly Trip[]
@@ -70,6 +72,7 @@ function getCorrectionDrafts(cache: RouteCacheRecord | null): RoadPartCorrection
     roadClass: part.roadClass,
     routeRef: part.routeRef ?? '',
     provinceCode: part.provinceCode ?? '',
+    manualDirection: part.manualDirection ?? '',
   })) ?? []
 }
 
@@ -92,19 +95,13 @@ export default function RoadAnalysisManager({
   const [progress, setProgress] = useState<HistoricalRoadAnalysisProgress>(EMPTY_PROGRESS)
   const [running, setRunning] = useState(false)
   const [managerOpen, setManagerOpen] = useState(false)
-  const initialCorrectionTrip = findReviewTripContainingSegment(trips, currentSegmentId)
-    ?? trips.find((trip) => trip.category === 'review' && trip.id === currentTripId)
-    ?? trips.find((trip) => trip.category === 'review')
-  const initialCorrectionDay = findTripDayContainingSegment(initialCorrectionTrip, currentSegmentId)
-    ?? initialCorrectionTrip?.days[0]
+  const reviewTrips = useMemo(() => sortTripsByStartDate(trips.filter((trip) => trip.category === 'review'))
+    .map((trip) => ({ ...trip, days: sortTripDaysByDate(trip.days) })), [trips])
+  const initialCorrectionTrip = reviewTrips[0]
+  const initialCorrectionDay = initialCorrectionTrip?.days[0]
   const [correctionTripId, setCorrectionTripId] = useState(initialCorrectionTrip?.id ?? '')
   const [correctionDayId, setCorrectionDayId] = useState(initialCorrectionDay?.id ?? '')
-  const [correctionSegmentId, setCorrectionSegmentId] = useState(() => {
-    if (currentSegmentId && findTripDayContainingSegment(initialCorrectionTrip, currentSegmentId)) {
-      return currentSegmentId
-    }
-    return getFirstSegmentId(initialCorrectionTrip, initialCorrectionDay?.id)
-  })
+  const [correctionSegmentId, setCorrectionSegmentId] = useState(() => getFirstSegmentId(initialCorrectionTrip, initialCorrectionDay?.id))
   const [correctionCache, setCorrectionCache] = useState<RouteCacheRecord | null>(null)
   const [correctionDrafts, setCorrectionDrafts] = useState<RoadPartCorrectionDraft[]>([])
   const [savingCorrectionIndex, setSavingCorrectionIndex] = useState<number | null>(null)
@@ -112,7 +109,6 @@ export default function RoadAnalysisManager({
   const controllerRef = useRef<AbortController | null>(null)
   const correctionContextRef = useRef({ currentTripId, currentSegmentId })
 
-  const reviewTrips = useMemo(() => sortTripsByStartDate(trips.filter((trip) => trip.category === 'review')), [trips])
   const correctionTrip = useMemo(
     () => reviewTrips.find((trip) => trip.id === correctionTripId),
     [reviewTrips, correctionTripId],
@@ -223,6 +219,7 @@ export default function RoadAnalysisManager({
         draft.roadClass === part.roadClass
         && draft.routeRef.trim() === (part.routeRef ?? '')
         && draft.provinceCode === (part.provinceCode ?? '')
+        && draft.manualDirection === (part.manualDirection ?? '')
       )) return []
       return [{ partIndex, draft }]
     })
@@ -463,9 +460,13 @@ export default function RoadAnalysisManager({
             parts={correctionCache.roadParts}
             drafts={correctionDrafts}
             disabled={isReadonlyMode || running || correctionSaving}
-            onDraftChange={(indices, patch) => setCorrectionDrafts((current) => current.map((draft, index) => (
-              indices.includes(index) ? { ...draft, ...patch } : draft
-            )))}
+            onDraftChange={(indices, patch) => setCorrectionDrafts((current) => current.map((draft, index) => {
+              if (!indices.includes(index)) return draft
+              const next = { ...draft, ...patch }
+              const identityChanged = next.roadClass !== draft.roadClass || next.routeRef !== draft.routeRef || next.provinceCode !== draft.provinceCode
+              next.manualDirection = identityChanged ? '' : normalizeManualDirection(next.manualDirection, next.roadClass, next.routeRef, next.provinceCode) ?? ''
+              return next
+            }))}
             onSave={(indices) => void saveCorrections(indices)}
             onRestore={(index) => void restoreCorrection(index)}
           />

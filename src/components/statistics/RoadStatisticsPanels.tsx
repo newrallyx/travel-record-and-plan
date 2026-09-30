@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useId, useMemo, useState } from 'react'
 import { ROAD_CLASS_COLORS, ROAD_CLASS_LABELS } from '../../config/roadStatistics.ts'
 import type { RoadStatisticsComparison, StatisticsCompleteness } from '../../types/tripStatistics.ts'
 import { selectNamedRoadRows } from '../../utils/roadStatisticsComparison.ts'
@@ -54,6 +54,9 @@ export function RoadComposition({ statistics, compact = false, currentLabel = '�
 export function NamedRoadTable({ statistics, compact = false, currentLabel = '本次', allScope = false }: {
   statistics: RoadStatisticsComparison; compact?: boolean; currentLabel?: string; allScope?: boolean
 }) {
+  const [expanded, setExpanded] = useState(false)
+  const contentId = useId()
+  const contentVisible = compact || expanded
   const [showOtherHistory, setShowOtherHistory] = useState(false)
   const showHistory = !allScope
   const distanceLabel = allScope ? '累计' : currentLabel
@@ -93,6 +96,11 @@ export function NamedRoadTable({ statistics, compact = false, currentLabel = '�
         <div><h3>{compact ? '高速 / 国道 / 省道 · 本次与历史' : '命名路线统计'}</h3>
            <p>{compact ? '列出本次经过的高速、国道和省道。' : '高速、国道及省道使用同一身份标识；涉及旅程数按全部复盘旅程去重，同一旅程多次经过只计 1 个，里程照常累计。'}{allScope ? '当前统计全部复盘旅程，累计里程已包含所有复盘记录。' : '历史累计包含当前选中的已复盘旅程。'}省份待确认和无编号省道独立汇总。</p>
          </div>
+        {!compact && <button type="button" className="statistics-disclosure-button" aria-expanded={expanded} aria-controls={contentId} onClick={() => setExpanded((value) => !value)}>
+          {expanded ? '收起' : '展开'}路线统计
+        </button>}
+      </header>
+      <div id={contentId} hidden={!contentVisible}>
            <div className="statistics-road-filters">
              <label className="statistics-road-search"><span>搜索道路/省份/编号</span>
                <input type="search" value={query} placeholder="例如 陕西、S101、G65" onChange={(event) => setQuery(event.target.value)} />
@@ -106,7 +114,6 @@ export function NamedRoadTable({ statistics, compact = false, currentLabel = '�
              </select></label>
              {!compact && !allScope && <label className="statistics-history-toggle"><input type="checkbox" checked={showOtherHistory} onChange={(event) => setShowOtherHistory(event.target.checked)} />显示其他历史道路</label>}
            </div>
-      </header>
       <div className={`statistics-table-wrap${compact ? ' statistics-compact-route-scroll' : ''}`}>
         <table className="statistics-table statistics-named-road-table">
            <thead><tr><th scope="col">道路身份 / 名称</th><th scope="col">类型</th>
@@ -118,7 +125,7 @@ export function NamedRoadTable({ statistics, compact = false, currentLabel = '�
           </tr></thead>
           <tbody>
             {rows.map((row) => {
-              const names = presentRoadNames(row.roadNames, row.routeRef)
+              const names = presentRoadNames(row.roadNames, row.routeRef, row.roadClass)
               return <tr key={row.key}>
                 <th scope="row"><span>{formatIdentity(row)}</span>
                   {names.summary && <small className="statistics-route-names statistics-route-summary" title={names.summary}>{names.summary}</small>}
@@ -142,6 +149,7 @@ export function NamedRoadTable({ statistics, compact = false, currentLabel = '�
         </table>
       </div>
        <p className="statistics-road-note">道路里程来自规划路线分析。按{distanceLabel}里程排序，占比的分母为{currentLabel}规划总里程（{formatNullableDistance(statistics.current.plannedDistanceMeters.value)}），随年份或旅程选择变化，不受搜索、类型或省份筛选影响。省份待确认不会合入任何已知省份。</p>
+      </div>
     </section>
   )
 }

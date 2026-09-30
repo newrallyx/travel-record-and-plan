@@ -59,9 +59,9 @@ function App() {
   const amapKeyConfig = useAmapKeyConfig(!isReadonlyDemoMode)
   const orphanCleanupStarted = useRef(false)
   const [photoCleanupFailures, setPhotoCleanupFailures] = useState<string[]>([])
-  const [compactPanelTab, setCompactPanelTab] = useState<CompactPanelTab>('editor')
+  const [compactPanelTab, setCompactPanelTab] = useState<CompactPanelTab>('details')
   const [detailPanelTab, setDetailPanelTab] = useState<DetailPanelTab>('details')
-  const [leftPanelCollapsed, setLeftPanelCollapsed] = useState(false)
+  const [leftPanelCollapsed, setLeftPanelCollapsed] = useState(true)
   const [rightPanelCollapsed, setRightPanelCollapsed] = useState(false)
   const [helpOpen, setHelpOpen] = useState(false)
   const [reviewMode, setReviewMode] = useState<ReviewMode>('organize')
@@ -204,6 +204,7 @@ function App() {
 
   const changeFiltersWithDetailGuard = useCallback(async (nextFilters: typeof filters) => {
     const selectionChanged = nextFilters.tripId !== filters.tripId
+      || nextFilters.year !== filters.year
       || nextFilters.dayId !== filters.dayId
       || nextFilters.segmentId !== filters.segmentId
     if (selectionChanged && detailDraftState.dirty) {
@@ -704,7 +705,15 @@ function App() {
               onSaveTravelogue={(travelogue) => saveTripTravelogue(roadbookTripId as string, travelogue)}
             />
           ) : (
-            <RoadbookLibraryView trips={workspaceTrips} items={tripBookItems} onOpenTrip={setRoadbookTripId} />
+            <RoadbookLibraryView trips={workspaceTrips} items={tripBookItems} onOpenTrip={setRoadbookTripId}
+              isReadonlyMode={isReadonlyDemoMode}
+              onSetCoverPhoto={(tripId, photoId) => {
+                if (isReadonlyDemoMode) return
+                setTripReview(prev => ({
+                  trips: prev.trips.map(trip => trip.id === tripId ? { ...trip, coverPhotoId: photoId ?? undefined } : trip),
+                }))
+              }}
+            />
           )}
         </div>
       )}
@@ -789,7 +798,7 @@ function App() {
             </button>
           </div>
           <div className="panel-body">
-          {!tripManagerOpen ? (
+          <div hidden={tripManagerOpen}>
             <TripEditor
               trips={workspaceTrips}
               onAddTrip={tripManager.addTrip}
@@ -798,7 +807,8 @@ function App() {
               selectedTripId={filters.tripId}
               selectedDayDate={selectedDay?.date ?? ''}
             />
-          ) : (
+          </div>
+          {tripManagerOpen && (
             <TripManageModal
               trips={workspaceTrips}
               onClose={() => setTripManagerOpen(false)}
@@ -819,13 +829,26 @@ function App() {
             aria-label="展开旅程编辑面板"
             title="展开面板"
           >
-            ›
+            <AppIcon name="edit" className="icon-inline" />
+            <span>旅程编辑</span>
+            <span aria-hidden="true">›</span>
           </button>
         </aside>
 
         <section className="map-column">
           <div className="map-column-header-row">
-            <span>{mapInfo.summary}</span>
+            <div className="map-scope-heading">
+              <strong>{mapInfo.title}</strong>
+              <span>{mapInfo.date}</span>
+            </div>
+            <dl className="map-summary-metrics">
+              {mapInfo.metrics.map((metric) => <div key={metric.label}>
+                <dt>{metric.label}</dt><dd>{metric.value.split(/(\d+(?:\.\d+)?)/).map((part, index) =>
+                  <span key={index} className={/^\d/.test(part) ? 'map-metric-number' : 'map-metric-unit'}>{part}</span>
+                )}</dd>
+              </div>)}
+            </dl>
+            <details className="map-summary-status"><summary>加载策略</summary>{mapInfo.cacheStatus}</details>
           </div>
 
           <div className="map-canvas-wrap">
@@ -836,6 +859,8 @@ function App() {
               allTrips={tripReview.trips}
               selectedTripId={filters.tripId}
               isOverviewMode={!filters.tripId}
+              aggregateOverview={!filters.tripId}
+              overviewYear={!filters.tripId ? filters.year : undefined}
               editingSegmentId={editingSegmentId}
               onCancelEdit={() => setEditingSegmentId(null)}
               onSaveEdit={(payload) => {
@@ -876,7 +901,11 @@ function App() {
             roadTypeVisibility={roadTypeVisibility}
             onChangeRoadTypeVisibility={setRoadTypeVisibility}
             canUseScoreColoring={canUseScoreColoring}
-            onOpenTripManager={() => setTripManagerOpen(true)}
+            onOpenTripManager={() => {
+              setTripManagerOpen(true)
+              setLeftPanelCollapsed(false)
+              setCompactPanelTab('editor')
+            }}
             onDuplicateTrip={tripManager.duplicateTrip}
             onInsertDayAfter={tripManager.insertDayAfter}
             onDeleteDay={tripManager.deleteDay}
@@ -942,7 +971,11 @@ onReorderDaySegments={tripManager.reorderDaySegments}
             placeholderMode={placeholderMode}
             tripListItems={tripListItems}
             onViewTrip={(tripId) => changeFiltersWithDetailGuard({ tripId, dayId: '', segmentId: '' })}
-            onOpenTripManager={() => setTripManagerOpen(true)}
+            onOpenTripManager={() => {
+              setTripManagerOpen(true)
+              setLeftPanelCollapsed(false)
+              setCompactPanelTab('editor')
+            }}
             onDeleteTrip={tripManager.deleteTrip}
             isReadonlyMode={isReadonlyDemoMode}
             filteredSegments={detailSegments}
@@ -1057,7 +1090,9 @@ onReorderDaySegments={tripManager.reorderDaySegments}
             aria-label="展开路段详情面板"
             title="展开面板"
           >
-            ‹
+            <AppIcon name="info" className="icon-inline" />
+            <span>路段详情</span>
+            <span aria-hidden="true">‹</span>
           </button>
         </aside>
       </div>
@@ -1066,6 +1101,7 @@ onReorderDaySegments={tripManager.reorderDaySegments}
 
       <AmapKeySetupDialog
         open={amapKeyConfig.isOpen}
+        initialPage={amapKeyConfig.initialPage}
         configured={amapKeyConfig.configured}
         source={amapKeyConfig.source}
         isSaving={amapKeyConfig.isSaving}

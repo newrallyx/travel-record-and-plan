@@ -115,6 +115,7 @@ export interface TripReview {
 }
 
 export interface FilterState {
+  year?: string
   tripId: string
   dayId: string
   segmentId: string
