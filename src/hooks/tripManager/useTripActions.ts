@@ -1,5 +1,6 @@
 import { useCallback } from 'react'
 import { alertDialog, confirmDialog } from '../../components/ConfirmDialog'
+import { showToast } from '../../components/ToastHost'
 import {
   deleteSegmentRouteCache,
   getSegmentRouteCache,
@@ -227,6 +228,7 @@ export function useTripActions({
           distanceMeters: routeCache.distanceMeters,
           estimatedDurationSeconds: routeCache.estimatedDurationSeconds,
           durationUpdatedAt: routeCache.durationUpdatedAt,
+          waypointEstimates: routeCache.waypointEstimates,
           estimatedTollYuan: routeCache.estimatedTollYuan,
           tollDistanceMeters: routeCache.tollDistanceMeters,
           tollUpdatedAt: routeCache.tollUpdatedAt,
@@ -234,7 +236,9 @@ export function useTripActions({
           roadAnalysis: routeCache.roadAnalysis,
         })
       }),
-    )
+    ).catch(() => {
+      showToast('旅程已复制，但部分路线缓存保存失败，请重新规划相关路段。', 'error')
+    })
 
     return copiedTrip.id
   }, [blockReadonlyWrite, resetEditingState, setFilters, setTripReview, tripReview.trips, workspaceTrips])

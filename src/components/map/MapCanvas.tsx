@@ -1,5 +1,5 @@
 import { useMemo, useState, type Dispatch, type SetStateAction } from 'react'
-import { MapContainer, Marker, Popup, Polyline, TileLayer } from 'react-leaflet'
+import { MapContainer, Marker, Pane, Popup, Polyline, TileLayer } from 'react-leaflet'
 import { OverviewRouteLayer } from './OverviewRouteLayer'
 import { OVERVIEW_COUNT_BANDS, OVERVIEW_COUNT_LABELS, overviewLineWeight, type OverviewLine } from './overviewAggregation'
 import type { CoordPoint, RouteColorMode, RouteSegment, Waypoint } from '../../types/trip'
@@ -38,6 +38,7 @@ import { formatDistance } from '../../utils/distance'
 import { getVisibleTrackPoints } from './visibleTrackPoints'
 
 interface MapCanvasProps {
+  animateViewport?: boolean
   filteredSegments: RouteSegment[]
   renderedTracks: SegmentTrack[]
   overviewLines?: OverviewLine[]
@@ -140,6 +141,7 @@ function RoadTypeLegend({ data, zoom, frequency = false }: { data: RoadTypeLegen
 }
 
 export function MapCanvas({
+  animateViewport,
   filteredSegments,
   renderedTracks,
   overviewLines,
@@ -168,6 +170,8 @@ export function MapCanvas({
     ? Math.max(2, 2 + (zoom - 4) * 0.125)
     : Math.min(5, 2.5 + (zoom - 8) * 0.25)
   const lineOpacity = isOverviewMode ? 0.82 : 0.96
+  const isDifficultyMode = routeColorMode === 'difficulty'
+  const difficultyLineWeight = Math.min(5, lineWeight + 1)
   const secondaryRoadOpacity = isOverviewMode ? 0.95 : 0.96
   const isDarkTheme = typeof window.matchMedia === 'function'
     && window.matchMedia('(prefers-color-scheme: dark)').matches
@@ -204,6 +208,7 @@ export function MapCanvas({
   return (
     <div className="map-panel-wrapper">
       <MapContainer
+        zoomAnimation={animateViewport !== false}
         center={DEFAULT_MAP_CENTER}
         zoom={4}
         zoomSnap={0.25}
@@ -220,6 +225,24 @@ export function MapCanvas({
         />
 
         {overviewLines && <OverviewRouteLayer lines={overviewLines} routeColorMode={routeColorMode} visibility={roadTypeVisibility} />}
+        {/* 单独放在 overlayPane (400) 下方，确保所有描边始终位于彩色线之下。 */}
+        {!overviewLines && isDifficultyMode && (
+          <Pane name="difficulty-route-outline" style={{ zIndex: 390, pointerEvents: 'none' }}>
+            {renderedTracks.filter((track) => track.line.length >= 2).map((track) => (
+              <Polyline
+                key={`${track.segmentId}-difficulty-outline`}
+                positions={toLatLng(track.line)}
+                interactive={false}
+                pathOptions={{
+                  color: isDarkTheme ? '#e2e8f0' : '#ffffff',
+                  weight: difficultyLineWeight + 2,
+                  opacity: 0.95,
+                  interactive: false,
+                }}
+              />
+            ))}
+          </Pane>
+        )}
         {!overviewLines && renderedTracks.map((track) => {
           if (track.line.length < 2) return null
           const sourceSegment = segmentMap.get(track.segmentId)
@@ -263,8 +286,8 @@ export function MapCanvas({
               positions={toLatLng(track.line)}
               pathOptions={{
                 color: lineColor,
-                weight: routeColorMode === 'roadType' ? roadTypeWeightForCategory(null, zoom) : lineWeight,
-                opacity: routeColorMode === 'roadType' ? secondaryRoadOpacity : lineOpacity,
+                weight: routeColorMode === 'roadType' ? roadTypeWeightForCategory(null, zoom) : isDifficultyMode ? difficultyLineWeight : lineWeight,
+                opacity: routeColorMode === 'roadType' ? secondaryRoadOpacity : isDifficultyMode ? 1 : lineOpacity,
               }}
             />
           )
@@ -383,17 +406,22 @@ export function MapCanvas({
         active={Boolean(photoPositionEditId)}
         onPick={onPhotoPositionDraftChange}
       />
-      <ViewportController points={allLatLng} />
+      <ViewportController points={allLatLng} animate={animateViewport} />
     </MapContainer>
 
     {activeLegendMode && (
-      <div className="map-score-legend">
-        <div className="map-score-legend-title">{activeLegendMode === 'scenic' ? '风景评分着色' : '难度评分着色'}</div>
+      <div className={`map-score-legend${activeLegendMode === 'difficulty' ? ' map-difficulty-score-legend' : ''}`}>
+        <div className="map-score-legend-title">{activeLegendMode === 'scenic' ? '风景评分着色' : '难度评分 · 四档渐变'}</div>
         <div className="map-score-legend-bar" style={{ backgroundImage: getScoreGradient(activeLegendMode) }} />
-        <div className="map-score-legend-scale">
-          <span>1</span>
-          <span>10</span>
-        </div>
+        {activeLegendMode === 'difficulty' ? (
+          <div className="map-score-legend-ticks">
+            {[1, 5, 7, 9, 10].map((score) => (
+              <span key={score} style={{ left: `${(score - 1) / 9 * 100}%` }}>{score}</span>
+            ))}
+          </div>
+        ) : (
+          <div className="map-score-legend-scale"><span>1</span><span>10</span></div>
+        )}
         <div className="map-score-legend-note">
           未评分轨迹显示为 <span className="map-score-legend-chip" style={{ backgroundColor: UNRATED_SEGMENT_COLOR }} /> 灰色
         </div>

@@ -2,6 +2,8 @@ import type { RouteSegment } from '../types/trip'
 import type { RoadAnalysisMeta, RouteRoadPart } from '../types/roadStatistics'
 import { ROAD_CLASSIFIER_VERSION } from '../config/roadStatistics.ts'
 
+// 持久化键表示路线输入/策略语义，保留既有版本以继续显示已保存路线及其预估。
+// V5 沿用速度优先/高速优先/避免收费语义；请求级缓存由 buildRouteKey 单独隔离版本。
 const ROUTE_BUILD_VERSION = 'amap-v3-strategy-v2'
 
 function formatCoord(lat?: number, lon?: number): string {

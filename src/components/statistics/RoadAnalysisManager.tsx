@@ -25,6 +25,7 @@ import { sortTripDaysByDate } from '../../utils/date.ts'
 import RoadPartCorrectionTable, { type RoadPartCorrectionDraft } from './RoadPartCorrectionTable.tsx'
 import RoadIntervalAnnotationPanel from './RoadIntervalAnnotationPanel.tsx'
 import { normalizeManualDirection } from '../../utils/manualRoadDirection.ts'
+import type { TravelRecordTarget } from '../../utils/travelRetrospective.ts'
 
 interface RoadAnalysisManagerProps {
   trips: readonly Trip[]
@@ -33,6 +34,8 @@ interface RoadAnalysisManagerProps {
   isReadonlyMode?: boolean
   onReplacement: (patch: ResolvedRoutePatch) => void
   onCacheChange: () => void
+  analysisTarget?: TravelRecordTarget & { revision: number }
+  onDraftStateChange?: (dirty: boolean) => void
 }
 
 const EMPTY_PROGRESS: HistoricalRoadAnalysisProgress = {
@@ -73,6 +76,7 @@ function getCorrectionDrafts(cache: RouteCacheRecord | null): RoadPartCorrection
     routeRef: part.routeRef ?? '',
     provinceCode: part.provinceCode ?? '',
     manualDirection: part.manualDirection ?? '',
+    concurrentRoads: part.concurrentRoads?.map(road => ({ ...road })) ?? [],
   })) ?? []
 }
 
@@ -90,6 +94,8 @@ export default function RoadAnalysisManager({
   isReadonlyMode = false,
   onReplacement,
   onCacheChange,
+  analysisTarget,
+  onDraftStateChange,
 }: RoadAnalysisManagerProps) {
   const [scope, setScope] = useState<HistoricalRoadAnalysisScope>('current-segment')
   const [progress, setProgress] = useState<HistoricalRoadAnalysisProgress>(EMPTY_PROGRESS)
@@ -97,15 +103,32 @@ export default function RoadAnalysisManager({
   const [managerOpen, setManagerOpen] = useState(false)
   const reviewTrips = useMemo(() => sortTripsByStartDate(trips.filter((trip) => trip.category === 'review'))
     .map((trip) => ({ ...trip, days: sortTripDaysByDate(trip.days) })), [trips])
-  const initialCorrectionTrip = reviewTrips[0]
-  const initialCorrectionDay = initialCorrectionTrip?.days[0]
+  const initialCorrectionTrip = findReviewTripContainingSegment(reviewTrips, currentSegmentId)
+    ?? reviewTrips.find((trip) => trip.id === currentTripId)
+    ?? reviewTrips[0]
+  const initialCorrectionDay = findTripDayContainingSegment(initialCorrectionTrip, currentSegmentId)
+    ?? initialCorrectionTrip?.days[0]
   const [correctionTripId, setCorrectionTripId] = useState(initialCorrectionTrip?.id ?? '')
   const [correctionDayId, setCorrectionDayId] = useState(initialCorrectionDay?.id ?? '')
-  const [correctionSegmentId, setCorrectionSegmentId] = useState(() => getFirstSegmentId(initialCorrectionTrip, initialCorrectionDay?.id))
+  const [correctionSegmentId, setCorrectionSegmentId] = useState(() => (
+    initialCorrectionDay?.routeSegments.some((segment) => segment.id === currentSegmentId)
+      ? currentSegmentId!
+      : getFirstSegmentId(initialCorrectionTrip, initialCorrectionDay?.id)
+  ))
   const [correctionCache, setCorrectionCache] = useState<RouteCacheRecord | null>(null)
   const [correctionDrafts, setCorrectionDrafts] = useState<RoadPartCorrectionDraft[]>([])
   const [savingCorrectionIndex, setSavingCorrectionIndex] = useState<number | null>(null)
   const [savingAllCorrections, setSavingAllCorrections] = useState(false)
+  const [activePartIndex, setActivePartIndex] = useState<number | null>(null)
+  const [selectedPartIndices, setSelectedPartIndices] = useState<Set<number>>(() => new Set())
+  const [intervalDirty, setIntervalDirty] = useState(false)
+  const [intervalRevision, setIntervalRevision] = useState(0)
+  const [switchingCorrection, setSwitchingCorrection] = useState(false)
+  const managerRef = useRef<HTMLElement>(null)
+  const unsavedRef = useRef(false)
+  const busyRef = useRef(false)
+  const selectedSegmentRef = useRef(correctionSegmentId)
+  selectedSegmentRef.current = correctionSegmentId
   const controllerRef = useRef<AbortController | null>(null)
   const correctionContextRef = useRef({ currentTripId, currentSegmentId })
 
@@ -126,6 +149,40 @@ export default function RoadAnalysisManager({
     [correctionSegmentId, correctionSegments],
   )
 
+  const confirmDiscardDrafts = async () => !unsavedRef.current || await confirmDialog({
+    title: '放弃未保存的道路修正',
+    message: '当前道路表格或区间标注有未保存的更改。确定放弃更改并继续吗？取消会保留当前对象与草稿。',
+    confirmText: '放弃更改',
+  })
+
+  const switchCorrectionTarget = async (tripId: string, dayId: string, segmentId: string) => {
+    if (busyRef.current) return false
+    if (segmentId === selectedSegmentRef.current && tripId === correctionTripId && dayId === correctionDayId) return true
+    busyRef.current = true
+    setSwitchingCorrection(true)
+    try {
+      if (!await confirmDiscardDrafts()) return false
+      setIntervalDirty(false)
+      setActivePartIndex(null)
+      setCorrectionTripId(tripId)
+      setCorrectionDayId(dayId)
+      setCorrectionSegmentId(segmentId)
+      return true
+    } finally { busyRef.current = false; setSwitchingCorrection(false) }
+  }
+
+  useEffect(() => {
+    if (!analysisTarget) return
+    let cancelled = false
+    void switchCorrectionTarget(analysisTarget.tripId, analysisTarget.dayId, analysisTarget.segmentId).then(changed => {
+      if (!changed || cancelled) return
+      setScope('current-segment')
+      setManagerOpen(true)
+      requestAnimationFrame(() => managerRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' }))
+    })
+    return () => { cancelled = true }
+  }, [analysisTarget])
+
   useEffect(() => {
     const previousContext = correctionContextRef.current
     const contextChanged = previousContext.currentTripId !== currentTripId
@@ -142,9 +199,7 @@ export default function RoadAnalysisManager({
         && findTripDayContainingSegment(nextTrip, currentSegmentId)
         ? currentSegmentId
         : getFirstSegmentId(nextTrip, nextDay?.id)
-      setCorrectionTripId(nextTrip?.id ?? '')
-      setCorrectionDayId(nextDay?.id ?? '')
-      setCorrectionSegmentId(nextSegmentId)
+      void switchCorrectionTarget(nextTrip?.id ?? '', nextDay?.id ?? '', nextSegmentId)
       return
     }
 
@@ -179,9 +234,10 @@ export default function RoadAnalysisManager({
 
   const loadCorrectionCache = async (segmentId = correctionSegmentId) => {
     const cache = segmentId ? await getSegmentRouteCache(segmentId) : null
-    if (segmentId === correctionSegmentId) {
+    if (segmentId === selectedSegmentRef.current) {
       setCorrectionCache(cache)
       setCorrectionDrafts(getCorrectionDrafts(cache))
+      setActivePartIndex(null)
     }
   }
 
@@ -189,6 +245,7 @@ export default function RoadAnalysisManager({
     let cancelled = false
     setCorrectionCache(null)
     setCorrectionDrafts([])
+    setActivePartIndex(null)
     if (!correctionSegmentId) {
       return
     }
@@ -220,11 +277,15 @@ export default function RoadAnalysisManager({
         && draft.routeRef.trim() === (part.routeRef ?? '')
         && draft.provinceCode === (part.provinceCode ?? '')
         && draft.manualDirection === (part.manualDirection ?? '')
+        && JSON.stringify(draft.concurrentRoads) === JSON.stringify(part.concurrentRoads ?? [])
       )) return []
       return [{ partIndex, draft }]
     })
   }, [correctionCache, correctionDrafts])
   const correctionSaving = savingAllCorrections || savingCorrectionIndex !== null
+  unsavedRef.current = dirtyCorrections.length > 0 || intervalDirty
+  busyRef.current = correctionSaving || running || switchingCorrection
+  useEffect(() => { onDraftStateChange?.(dirtyCorrections.length > 0 || intervalDirty) }, [dirtyCorrections.length, intervalDirty, onDraftStateChange])
 
   const saveCorrections = async (indices: number[]) => {
     if (!correctionSegmentId || correctionSaving || isReadonlyMode || running || indices.length === 0) return
@@ -267,6 +328,10 @@ export default function RoadAnalysisManager({
 
   const runTargets = async (targets: HistoricalRoadAnalysisTarget[]) => {
     if (running || targets.length === 0) return
+    if (!await confirmDiscardDrafts()) return
+    setCorrectionDrafts(getCorrectionDrafts(correctionCache))
+    setIntervalDirty(false)
+    setIntervalRevision(value => value + 1)
     const controller = new AbortController()
     controllerRef.current = controller
     setRunning(true)
@@ -313,7 +378,7 @@ export default function RoadAnalysisManager({
   }
 
   const start = () => {
-    const targets = collectHistoricalRoadAnalysisTargets(trips, scope, currentTripId, currentSegmentId)
+    const targets = collectHistoricalRoadAnalysisTargets(trips, scope, correctionTripId, correctionSegmentId)
     if (targets.length === 0) {
       showToast('当前范围没有可分析的复盘路段。', 'info')
       return
@@ -331,7 +396,7 @@ export default function RoadAnalysisManager({
   }, [progress.failed, progress.items.length, running])
 
   return (
-    <section className="statistics-module road-analysis-manager" aria-label="历史路线道路分析">
+    <section ref={managerRef} className="statistics-module road-analysis-manager" aria-label="历史路线道路分析">
       <details
         className="road-analysis-disclosure"
         open={managerOpen}
@@ -360,7 +425,7 @@ export default function RoadAnalysisManager({
             <option value="all-review">全部复盘旅程</option>
           </select>
         </label>
-        <button type="button" className="btn-primary" onClick={start} disabled={isReadonlyMode || running || (scope === 'current-segment' ? !currentSegmentId : scope === 'current-trip' ? !currentTripId : false)}>
+        <button type="button" className="btn-primary" onClick={start} disabled={isReadonlyMode || running || correctionSaving || switchingCorrection || (scope === 'current-segment' ? !correctionSegmentId : scope === 'current-trip' ? !correctionTripId : false)}>
           {running ? '分析中…' : '开始分析'}
         </button>
         {running && <button type="button" className="btn-secondary" onClick={() => controllerRef.current?.abort()}>取消</button>}
@@ -385,7 +450,7 @@ export default function RoadAnalysisManager({
           <div className="road-analysis-corrections">
         <header>
           <div className="road-analysis-correction-heading">
-            <div><h4>人工修正</h4><p>可修正道路类型、编号和省份；来源记为 MANUAL，可随时按原始道路证据恢复自动分类。</p></div>
+            <div><h4>人工修正</h4><p>可修正主道路类型、编号和省份，或添加多条共线道路；来源记为 MANUAL，可恢复自动分类。</p></div>
             <button
               type="button"
               className="btn-primary"
@@ -405,11 +470,9 @@ export default function RoadAnalysisManager({
                   const nextTripId = event.target.value
                   const nextTrip = reviewTrips.find((trip) => trip.id === nextTripId)
                   const nextDay = nextTrip?.days[0]
-                  setCorrectionTripId(nextTripId)
-                  setCorrectionDayId(nextDay?.id ?? '')
-                  setCorrectionSegmentId(getFirstSegmentId(nextTrip, nextDay?.id))
+                  void switchCorrectionTarget(nextTripId, nextDay?.id ?? '', getFirstSegmentId(nextTrip, nextDay?.id))
                 }}
-                disabled={running || correctionSaving}
+                disabled={running || correctionSaving || switchingCorrection}
               >
                 <option value="">请选择旅程</option>
                 {reviewTrips.map((trip) => <option key={trip.id} value={trip.id}>{trip.title}</option>)}
@@ -422,10 +485,9 @@ export default function RoadAnalysisManager({
                 value={correctionDayId}
                 onChange={(event) => {
                   const nextDayId = event.target.value
-                  setCorrectionDayId(nextDayId)
-                  setCorrectionSegmentId(getFirstSegmentId(correctionTrip, nextDayId))
+                  void switchCorrectionTarget(correctionTripId, nextDayId, getFirstSegmentId(correctionTrip, nextDayId))
                 }}
-                disabled={running || correctionSaving || !correctionTrip || correctionTrip.days.length === 0}
+                disabled={running || correctionSaving || switchingCorrection || !correctionTrip || correctionTrip.days.length === 0}
               >
                 <option value="">{correctionTrip ? '请选择日期' : '请先选择旅程'}</option>
                 {correctionTrip?.days.map((day) => <option key={day.id} value={day.id}>{day.date || '未标日期'}</option>)}
@@ -436,8 +498,8 @@ export default function RoadAnalysisManager({
               <select
                 aria-label="选择对应日期的路段"
                 value={correctionSegmentId}
-                onChange={(event) => setCorrectionSegmentId(event.target.value)}
-                disabled={running || correctionSaving || !correctionDay || correctionSegments.length === 0}
+                onChange={(event) => { void switchCorrectionTarget(correctionTripId, correctionDayId, event.target.value) }}
+                disabled={running || correctionSaving || switchingCorrection || !correctionDay || correctionSegments.length === 0}
               >
                 <option value="">{correctionDay ? '请选择路段' : correctionTrip ? '请先选择日期' : '请先选择旅程'}</option>
                 {correctionSegments.map((segment) => <option key={segment.id} value={segment.id}>{segment.name}</option>)}
@@ -447,19 +509,28 @@ export default function RoadAnalysisManager({
         </header>
         {correctionSegment && (
           <RoadIntervalAnnotationPanel
+            key={`${correctionSegmentId}:${intervalRevision}`}
             segment={correctionSegment}
             cache={correctionCache}
-            disabled={isReadonlyMode || running || correctionSaving}
+            disabled={isReadonlyMode || running || correctionSaving || switchingCorrection || dirtyCorrections.length > 0}
+            activePartIndex={activePartIndex}
+            selectedPartIndices={selectedPartIndices}
+            onDirtyChange={setIntervalDirty}
             onCacheChange={onCacheChange}
             onReload={() => loadCorrectionCache()}
           />
         )}
+        {dirtyCorrections.length > 0 && <p className="statistics-road-note">道路表格有未保存的修改，请先保存表格，再修改区间标注。</p>}
         {correctionCache?.roadParts?.length ? (
           <RoadPartCorrectionTable
             key={correctionSegmentId}
             parts={correctionCache.roadParts}
             drafts={correctionDrafts}
-            disabled={isReadonlyMode || running || correctionSaving}
+            disabled={isReadonlyMode || running || correctionSaving || switchingCorrection}
+            activePartIndex={activePartIndex}
+            onLocatePart={setActivePartIndex}
+            selected={selectedPartIndices}
+            onSelectionChange={setSelectedPartIndices}
             onDraftChange={(indices, patch) => setCorrectionDrafts((current) => current.map((draft, index) => {
               if (!indices.includes(index)) return draft
               const next = { ...draft, ...patch }

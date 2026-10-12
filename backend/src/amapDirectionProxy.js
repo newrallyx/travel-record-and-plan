@@ -1,19 +1,4 @@
-function readOptionalParam(url, key) {
-  const value = url.searchParams.get(key)
-  if (!value) return null
-  const trimmed = value.trim()
-  return trimmed ? trimmed : null
-}
-
-async function fetchWithTimeout(targetUrl, timeoutMs) {
-  const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), timeoutMs)
-  try {
-    return await fetch(targetUrl, { signal: controller.signal })
-  } finally {
-    clearTimeout(timeout)
-  }
-}
+import { readOptionalParam, requestUpstreamJson } from './upstreamRequest.js'
 
 export function createDirectionProxyHandler({ amapWebApiKey, getAmapWebApiKey } = {}) {
   return async function handleDirection(req, res) {
@@ -39,20 +24,19 @@ export function createDirectionProxyHandler({ amapWebApiKey, getAmapWebApiKey } 
       return
     }
 
-    const targetUrl = new URL('https://restapi.amap.com/v3/direction/driving')
+    const targetUrl = new URL('https://restapi.amap.com/v5/direction/driving')
     targetUrl.searchParams.set('key', currentAmapWebApiKey)
     targetUrl.searchParams.set('origin', origin)
     targetUrl.searchParams.set('destination', destination)
     targetUrl.searchParams.set('strategy', strategy)
-    targetUrl.searchParams.set('extensions', 'all')
+    targetUrl.searchParams.set('show_fields', 'cost,polyline,navi,cities')
     targetUrl.searchParams.set('output', 'json')
     if (waypoints) {
       targetUrl.searchParams.set('waypoints', waypoints.replace(/\|/g, ';'))
     }
 
     try {
-      const upstream = await fetchWithTimeout(targetUrl.toString(), 5000)
-      const data = await upstream.json()
+      const { response: upstream, data } = await requestUpstreamJson(targetUrl.toString())
       if (!upstream.ok) {
         res.status(upstream.status).json({ ok: false, message: 'direction upstream error', detail: data })
         return
@@ -60,7 +44,7 @@ export function createDirectionProxyHandler({ amapWebApiKey, getAmapWebApiKey } 
       res.status(200).json({ ok: true, data })
     } catch (error) {
       const message = error?.name === 'AbortError' ? 'direction timeout(5s)' : 'direction proxy failed'
-      res.status(502).json({ ok: false, message })
+      res.status(502).json({ ok: false, code: error?.name === 'AbortError' ? 'UPSTREAM_TIMEOUT' : 'UPSTREAM_FAILED', message })
     }
   }
 }

@@ -1,6 +1,6 @@
 /* ============================================================
    全局基础样式 · 设计令牌
-   设计语言：深邃靛蓝 + 暖灰底 · 玻璃质感 · 克制的动效
+   设计语言：中性表面、清晰分区、克制的蓝绿强调
    ============================================================ */
 
 :root {
@@ -9,28 +9,32 @@
   --font-caption: 13px;
   --font-heading: 16px;
   --font-number: 20px;
-  --bg: #eef1f7;
+  --bg: #f4f5f7;
   --surface: #ffffff;
-  --surface-2: #f8fafc;
-  --surface-3: #f1f4f9;
+  --surface-2: #f8f9fb;
+  --surface-3: #eef1f4;
 
   --ink: #0f172a;
   --ink-2: #334155;
   --ink-3: #58677d;
   --muted: #94a3b8;
 
-  --line: #e4e9f2;
-  --line-2: #d3dae6;
-  --line-3: #aab4c9;
+  --line: #e3e7ec;
+  --line-2: #cfd6df;
+  --line-3: #a2afbf;
 
-  --primary: #4f46e5;
+  --primary: #237c80;
   --on-primary: #ffffff;
-  --focus-ring: #4f46e5;
-  --primary-strong: #4338ca;
-  --primary-soft: #eef2ff;
-  --primary-softer: #f5f7ff;
-  --primary-soft-hover: #e0e7ff;
-  --primary-line: #a5b4fc;
+  --focus-ring: #237c80;
+  --primary-strong: #175e63;
+  --primary-soft: #edf5f4;
+  --primary-softer: #f6f9f8;
+  --primary-soft-hover: #deece9;
+  --primary-line: #b6cec9;
+
+  /* 暖橙只用于旅程终点等辅助强调，与警告状态分开。 */
+  --accent-strong: #99531b;
+  --accent-soft: #fff3e8;
 
   --danger: #e11d48;
   --danger-strong: #be123c;
@@ -42,14 +46,14 @@
   --warning-text: #b45309;
   --success-text: #047857;
 
-  --radius-lg: 14px;
-  --radius-md: 10px;
-  --radius-panel: 12px;
-  --radius-sm: 8px;
+  --radius-lg: 8px;
+  --radius-md: 6px;
+  --radius-panel: 6px;
+  --radius-sm: 4px;
 
-  --shadow-card: 0 1px 2px rgba(16, 24, 40, 0.06), 0 6px 16px -14px rgba(16, 24, 40, 0.18);
-  --shadow-card-hover: 0 2px 4px rgba(16, 24, 40, 0.08), 0 10px 22px -14px rgba(16, 24, 40, 0.2);
-  --shadow-focus: 0 0 0 3px rgba(99, 102, 241, 0.16);
+  --shadow-card: none;
+  --shadow-card-hover: 0 2px 8px rgba(16, 24, 40, 0.08);
+  --shadow-focus: 0 0 0 3px rgba(35, 124, 128, 0.16);
   --shadow-pop:
     0 18px 48px -12px rgba(16, 24, 40, 0.28),
     0 4px 14px -6px rgba(16, 24, 40, 0.12);
@@ -85,7 +89,7 @@ body {
 }
 
 ::selection {
-  background: rgba(99, 102, 241, 0.22);
+  background: var(--primary-soft-hover);
   color: var(--ink);
 }
 
@@ -139,10 +143,10 @@ body {
 @media (prefers-color-scheme: dark) {
   :root {
     color-scheme: dark;
-    --bg: #0b1120;
-    --surface: #101a2e;
-    --surface-2: #0d1524;
-    --surface-3: #1a2438;
+    --bg: #151b1d;
+    --surface: #1e2629;
+    --surface-2: #192124;
+    --surface-3: #2a3437;
 
     --ink: #e6ebf5;
     --ink-2: #c3cde0;
@@ -153,14 +157,17 @@ body {
     --line-2: rgba(148, 163, 184, 0.3);
     --line-3: rgba(148, 163, 184, 0.5);
 
-    --primary: #818cf8;
-    --on-primary: #0b1120;
-    --focus-ring: #a5b4fc;
-    --primary-strong: #a5b4fc;
-    --primary-soft: rgba(99, 102, 241, 0.18);
-    --primary-softer: rgba(99, 102, 241, 0.1);
-    --primary-soft-hover: rgba(99, 102, 241, 0.26);
-    --primary-line: rgba(165, 180, 252, 0.5);
+    --primary: #7dd3c8;
+    --on-primary: #152523;
+    --focus-ring: #a1e3da;
+    --primary-strong: #a1e3da;
+    --primary-soft: rgba(125, 211, 200, 0.14);
+    --primary-softer: rgba(125, 211, 200, 0.07);
+    --primary-soft-hover: rgba(125, 211, 200, 0.22);
+    --primary-line: rgba(125, 211, 200, 0.4);
+
+    --accent-strong: #f4bd8a;
+    --accent-soft: rgba(217, 140, 69, 0.12);
 
     --danger: #fb7185;
     --danger-strong: #fda4af;
@@ -171,10 +178,10 @@ body {
     --warning-soft: rgba(217, 119, 6, 0.16);
     --warning-text: #fbbf24;
     --success-text: #6ee7b7;
-    --shadow-focus: 0 0 0 3px rgba(165, 180, 252, 0.24);
+    --shadow-focus: 0 0 0 3px rgba(125, 211, 200, 0.24);
 
-    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 20px -14px rgba(0, 0, 0, 0.45);
-    --shadow-card-hover: 0 2px 4px rgba(0, 0, 0, 0.35), 0 12px 26px -14px rgba(0, 0, 0, 0.5);
+    --shadow-card: none;
+    --shadow-card-hover: 0 2px 8px rgba(0, 0, 0, 0.2);
     --shadow-pop:
       0 18px 48px -12px rgba(0, 0, 0, 0.6),
       0 4px 14px -6px rgba(0, 0, 0, 0.4);
@@ -187,7 +194,7 @@ body {
   }
 
   ::selection {
-    background: rgba(129, 140, 248, 0.35);
+    background: var(--primary-soft-hover);
     color: var(--ink);
   }
 

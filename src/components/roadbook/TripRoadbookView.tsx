@@ -13,6 +13,7 @@ import RoadbookMap from './RoadbookMap'
 import TravelogueDialog from './TravelogueDialog'
 import TripStatisticsPanel from './TripStatisticsPanel'
 import type { Trip } from '../../types/trip'
+import RoadbookExportPanel from './RoadbookExportPanel'
 
 interface TripRoadbookViewProps {
   trip: Trip
@@ -27,6 +28,7 @@ function TripRoadbookView({ trip, trips, onBack, isReadonlyMode, onSaveTravelogu
   const [selectedPhotoId, setSelectedPhotoId] = useState<string | null>(null)
   const [travelogueOpen, setTravelogueOpen] = useState(false)
   const [travelogueText, setTravelogueText] = useState('')
+  const [exportOpen, setExportOpen] = useState(false)
 
   const sortedDays = useMemo(() => [...trip.days].sort((a, b) => a.date.localeCompare(b.date)), [trip.days])
 
@@ -94,7 +96,10 @@ function TripRoadbookView({ trip, trips, onBack, isReadonlyMode, onSaveTravelogu
         <button type="button" className="btn-secondary roadbook-travelogue-button" onClick={openTravelogue}>
           {savedTravelogue ? '查看游记' : '生成游记'}
         </button>
+        <button type="button" className="btn-secondary" onClick={() => setExportOpen(value => !value)}>导出路书</button>
       </div>
+
+      {exportOpen && <RoadbookExportPanel key={trip.id} trip={trip} onClose={() => setExportOpen(false)} />}
 
       <header className="roadbook-trip-header">
         <h2>{trip.title}</h2>
@@ -118,7 +123,7 @@ function TripRoadbookView({ trip, trips, onBack, isReadonlyMode, onSaveTravelogu
       {segments.length > 0 ? (
         <div className="roadbook-overview-map">
           <h3>旅程总览</h3>
-          <RoadbookMap segments={segments} />
+          <RoadbookMap key={trip.id} segments={segments} trips={trips} selectedTripId={trip.id} />
         </div>
       ) : (
         <p className="hint-text">这个旅程还没有记录路段，暂时没有可浏览的路线内容。</p>

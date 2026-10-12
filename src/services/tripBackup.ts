@@ -1,6 +1,6 @@
 import type { TripReview } from '../types/trip'
 import {
-  getAllSegmentRouteCache,
+  getAllSegmentRouteCacheStrict,
   normalizeRouteCacheRecords,
   type RouteCacheRecord,
 } from './routeCacheDb.ts'
@@ -169,7 +169,7 @@ export function buildTripBackupPayload(
 
 export async function createTripBackupExport(data: TripReview): Promise<TripBackupExport> {
   const exportedAt = new Date()
-  const segmentRoutes = await getAllSegmentRouteCache()
+  const segmentRoutes = await getAllSegmentRouteCacheStrict()
   const payload = buildTripBackupPayload(data, segmentRoutes, exportedAt)
   const routeSegmentCount = payload.summary.routeSegmentCount
 

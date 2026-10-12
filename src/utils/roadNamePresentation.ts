@@ -1,6 +1,13 @@
 import { normalizeRoadText } from './roadClassifier.ts'
 import { nationalRoadDisplayName } from '../config/nationalRoadNames.ts'
-import type { RoadClass } from '../types/roadStatistics.ts'
+import { ROAD_CLASS_LABELS } from '../config/roadStatistics.ts'
+import type { RoadClass, RouteRoadPart } from '../types/roadStatistics.ts'
+
+/** 原道路名称优先；缺少名称时才使用当前人工修正后的编号与类型。 */
+export function getRoadPartDisplayName(part: Pick<RouteRoadPart, 'roadName' | 'tollRoad' | 'routeRef' | 'roadClass'>): string {
+  return part.roadName?.trim() || part.tollRoad?.trim()
+    || (part.routeRef?.trim() ? `${part.routeRef.trim()} ${ROAD_CLASS_LABELS[part.roadClass]}` : '未命名道路')
+}
 
 /** Presentation only: keep original names and road identities untouched. */
 export function presentRoadNames(roadNames: readonly string[], routeRef: string | null, roadClass?: RoadClass) {

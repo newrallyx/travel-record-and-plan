@@ -1,5 +1,6 @@
 import type { RouteColorMode, RouteSegment } from '../types/trip'
-import { SCORE_MAX, SCORE_MIN } from '../config/roadStatistics.ts'
+import { DIFFICULTY_SCORE_BANDS, SCORE_MAX, SCORE_MIN } from '../config/roadStatistics.ts'
+import type { DifficultyScoreBandKey } from '../types/roadStatistics.ts'
 
 export { SCORE_MAX, SCORE_MIN } from '../config/roadStatistics.ts'
 export const UNRATED_SEGMENT_COLOR = '#94a3b8'
@@ -23,6 +24,16 @@ export const scenicColorStops: Array<{ score: number; color: string }> = [
   { score: 9, color: '#26c95f' },
   { score: 10, color: '#00e676' },
 ]
+
+// 档间保留不同色相，档内仅逐渐加深；范围沿用统计定义。
+export const DIFFICULTY_SCORE_COLOR_RAMPS: Readonly<Record<DifficultyScoreBandKey, { start: string; end: string }>> = {
+  LOW: { start: '#10a38c', end: '#00584e' },
+  MEDIUM: { start: '#b56fe4', end: '#552078' },
+  // 玫红保持较高亮度和偏紫的色相，避免其深色端滑入酒红。
+  HIGH: { start: '#f05ca6', end: '#cb167f' },
+  // 极高档从深酒红起步，不提亮为与玫红近似的浅红。
+  TOP: { start: '#701827', end: '#2b070f' },
+}
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value))
@@ -102,24 +113,18 @@ function colorFromAnchors(ratio: number, anchors: Array<{ at: number; color: str
 }
 
 export function scoreToColor(score: number | null | undefined, mode: SegmentScoreColorMode): string {
-  const ratio = normalizeScoreRatio(score)
-
-  if (mode === 'scenic') {
-    return colorFromAnchors(
-      ratio,
-      scenicColorStops.map((stop) => ({ at: scoreToRatio(stop.score), color: stop.color })),
-    )
+  if (mode === 'difficulty') {
+    const normalized = normalizeScore(score)
+    if (normalized === null) return UNRATED_SEGMENT_COLOR
+    const band = DIFFICULTY_SCORE_BANDS.find((band) => normalized >= band.minInclusive
+      && (band.maxExclusive === null || normalized < band.maxExclusive))!
+    const colors = DIFFICULTY_SCORE_COLOR_RAMPS[band.key]
+    const bandMax = band.maxExclusive ?? SCORE_MAX
+    const ratio = (normalized - band.minInclusive) / (bandMax - band.minInclusive)
+    return interpolateHexColor(colors.start, colors.end, ratio)
   }
-
-  return colorFromAnchors(ratio, [
-    { at: 0, color: '#1f9d55' },
-    { at: 0.35, color: '#84cc16' },
-    { at: 0.6, color: '#f59e0b' },
-    { at: 0.78, color: '#f97316' },
-    { at: 0.86, color: '#ef4444' },
-    { at: 0.93, color: '#c81e1e' },
-    { at: 1, color: '#7f1d1d' },
-  ])
+  const ratio = normalizeScoreRatio(score)
+  return colorFromAnchors(ratio, scenicColorStops.map((stop) => ({ at: scoreToRatio(stop.score), color: stop.color })))
 }
 
 export function getSegmentScore(segment: RouteSegment, mode: SegmentScoreColorMode): number | null {
@@ -138,6 +143,15 @@ export function getSegmentDisplayColor(
 }
 
 export function getScoreGradient(mode: SegmentScoreColorMode): string {
+  if (mode === 'difficulty') {
+    const stops = DIFFICULTY_SCORE_BANDS.map((band) => {
+      const colors = DIFFICULTY_SCORE_COLOR_RAMPS[band.key]
+      const start = scoreToRatio(band.minInclusive) * 100
+      const end = scoreToRatio(band.maxExclusive ?? SCORE_MAX) * 100
+      return `${colors.start} ${start}%, ${colors.end} ${end}%`
+    })
+    return `linear-gradient(90deg, ${stops.join(', ')})`
+  }
   const start = scoreToColor(SCORE_MIN, mode)
   const middle = scoreToColor((SCORE_MIN + SCORE_MAX) / 2, mode)
   const end = scoreToColor(SCORE_MAX, mode)

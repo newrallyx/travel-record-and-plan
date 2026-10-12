@@ -32,9 +32,9 @@ function withCurrentRoute(segment) {
   return { ...segment, routeBuildKey: buildSegmentRouteKey(segment) }
 }
 
-test('three route preferences map to distinct AMap V3 strategies and route keys', () => {
+test('three route preferences map to distinct AMap V5 strategies and route keys', () => {
   assert.equal(preferenceToStrategy('SPEED_FIRST'), '0')
-  assert.equal(preferenceToStrategy('HIGHWAY_FIRST'), '19')
+  assert.equal(preferenceToStrategy('HIGHWAY_FIRST'), '34')
   assert.equal(preferenceToStrategy('AVOID_TOLL'), '1')
 
   const points = [{ lat: 34.3, lng: 108.9 }, { lat: 34.4, lng: 107.2 }]

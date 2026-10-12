@@ -4,24 +4,32 @@ import { readFileSync } from 'node:fs'
 import vm from 'node:vm'
 import ts from 'typescript'
 import { IDBFactory } from 'fake-indexeddb'
+import { createHash } from 'node:crypto'
 import { createOverviewCache, createPersistentOverviewCache, overviewCacheKey } from '../src/components/map/overviewCache.ts'
-import { createOverviewHoverIndex, overviewLineWeight } from '../src/components/map/overviewAggregation.ts'
+import { aggregateOverviewTracks, createOverviewHoverIndex, overviewLineWeight } from '../src/components/map/overviewAggregation.ts'
 import { overviewDirectionMode, offsetScreenLine, screenDirectionArrows } from '../src/components/map/overviewDirectionDisplay.ts'
 import * as roadTypes from '../src/components/map/roadTypeVisualization.ts'
 
 const tracks = [{ segmentId: 'a', line: [{ lat: 34, lon: 109 }, { lat: 35, lon: 110 }], roadParts: [{ roadClass: 'EXPRESSWAY', manualDirection: '昆明', polyline: [[34, 109], [35, 110]] }] }]
-test('overview cache reuses cloned scope and invalidates geometry, road class and direction edits', () => {
+test('overview cache reuses cloned scope and invalidates geometry, road class and direction edits', async () => {
   const cache = createOverviewCache()
-  const key = overviewCacheKey(tracks), result = [{ count: 2 }]
+  const key = await overviewCacheKey(tracks), result = [{ count: 2 }]
+  assert.match(key, /^sha256:[0-9a-f]{64}$/)
+  // Preserve the existing disk identity; deploying this fix must not invalidate saved overviews.
+  const oldContent = JSON.stringify([3, tracks.map(({ segmentId, line, roadParts }) => [segmentId, line, roadParts])])
+  assert.equal(key, `sha256:${createHash('sha256').update(oldContent).digest('hex')}`)
   cache.set(key, result)
-  assert.equal(cache.get(overviewCacheKey(structuredClone(tracks))), result)
-  for (const edit of [t => t[0].line[0].lat++, t => t[0].roadParts[0].roadClass = 'NATIONAL_ROAD', t => t[0].roadParts[0].manualDirection = '北京']) {
+  assert.equal(cache.get(await overviewCacheKey(structuredClone(tracks))), result)
+  for (const edit of [t => t[0].line[0].lat++, t => t[0].roadParts[0].roadClass = 'NATIONAL_ROAD', t => t[0].roadParts[0].manualDirection = '北京',
+    t => t[0].roadParts[0].concurrentRoads = [{ roadClass: 'EXPRESSWAY', routeRef: 'G70' }],
+    t => t[0].roadParts[0].polyline[0][0]++,
+    t => t[0].roadParts[0].provinceCandidates = ['610000', '620000']]) {
     const copy = structuredClone(tracks); edit(copy)
-    assert.equal(cache.get(overviewCacheKey(copy)), undefined)
+    assert.equal(cache.get(await overviewCacheKey(copy)), undefined)
   }
   const other = { ...tracks[0], segmentId: 'b' }
-  assert.equal(overviewCacheKey([...tracks, other]), overviewCacheKey([other, ...tracks]))
-  assert.notEqual(key, overviewCacheKey([...tracks, other]))
+  assert.equal(await overviewCacheKey([...tracks, other]), await overviewCacheKey([other, ...tracks]))
+  assert.notEqual(key, await overviewCacheKey([...tracks, other]))
 })
 test('overview cache retains recently revisited scopes and bounds memory', () => {
   const cache = createOverviewCache(2), first = []
@@ -90,6 +98,27 @@ test('actual overview layer keeps count-only paths even with stale direction dat
   assert.match(westPath.tooltipContent.children[1].textContent, /17 次（双向合计/)
   cleanup()
 
+  const concurrentTracks = [
+    ...Array.from({ length: 3 }, (_, i) => ({ segmentId: `east-${i}`, positions: east, routeRef: 'G22', concurrentRef: 'G70' })),
+    ...Array.from({ length: 2 }, (_, i) => ({ segmentId: `west-${i}`, positions: west, routeRef: 'G70', concurrentRef: 'G22' })),
+  ].map(({ segmentId, positions, routeRef, concurrentRef }) => ({ segmentId, segmentName: segmentId, points: [],
+    line: positions.map(([lat, lon]) => ({ lat, lon })), roadParts: [{ roadClass: 'EXPRESSWAY', routeRef,
+      concurrentRoads: [{ roadClass: 'EXPRESSWAY', routeRef: concurrentRef }], source: 'MANUAL', confidence: 'HIGH',
+      polyline: positions, distanceMeters: 1000 }] }))
+  const concurrentLines = aggregateOverviewTracks(concurrentTracks, false)
+  exports.OverviewRouteLayer({ lines: concurrentLines, routeColorMode: 'default', visibility: {} })
+  const concurrentPaths = paths.slice(-concurrentLines.length)
+  for (const level of [6, 10, 14]) {
+    zoom = level; handlers.moveend()
+    concurrentPaths.forEach((path, i) => {
+      const line = concurrentLines[i], lat = line.positions[0][0]
+      for (const event of ['mouseover', 'mousemove']) path.events[event]({ latlng: { lat, lng: 109.005 } })
+      assert.match(path.tooltipContent.children[0].textContent, /G22|G70/)
+      assert.match(path.tooltipContent.children[1].textContent, /5 次（双向合计/)
+    })
+  }
+  cleanup()
+
   const visibility = { ...roadTypes.DEFAULT_ROAD_TYPE_VISIBILITY, UNKNOWN: false }
   const lines = ['EXPRESSWAY', 'UNKNOWN'].map((roadClass, index) => ({
     id: `filter-${index}`, positions, count: 1, roadClass,
@@ -108,19 +137,19 @@ test('actual overview layer keeps count-only paths even with stale direction dat
   }
 })
 
-test('hook returns cached overview immediately on revisiting scope and rejects cancelled workers', async () => {
-  const cache = createOverviewCache()
-  const disk = new Map()
-  const persistentOverviewCache = { get: async key => disk.get(key), set: async (key, lines) => disk.set(key, lines) }
-  let state, effectDeps, pendingEffect, cleanup
-  const workers = []
+test('hook hashes off-render, reuses caches, cancels obsolete work and reports failures', async () => {
+  const cache = createOverviewCache(), disk = new Map(), workers = []
+  let state, effectDeps, pendingEffect, cleanup, pendingRead
+  const persistentOverviewCache = {
+    get: key => pendingRead ?? Promise.resolve(disk.get(key)),
+    set: async (key, lines) => disk.set(key, lines),
+  }
   class Worker {
-    constructor() { workers.push(this) }
-    postMessage(tracks) { this.tracks = tracks }
+    constructor() { workers.push(this); this.messages = [] }
+    postMessage(message) { this.messages.push(message) }
     terminate() { this.terminated = true }
   }
   const react = {
-    useMemo: fn => fn(),
     useState: () => [state, value => { state = value }],
     useEffect: (fn, deps) => {
       if (!effectDeps || deps.some((v, i) => v !== effectDeps[i])) {
@@ -131,51 +160,102 @@ test('hook returns cached overview immediately on revisiting scope and rejects c
   const source = readFileSync(new URL('../src/components/map/useOverviewAggregation.ts', import.meta.url), 'utf8').replace('import.meta.url', "'file:///overview.js'")
   const code = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText
   const exports = {}
-  vm.runInNewContext(code, { exports, URL, Worker, require: id => id === 'react' ? react : { overviewCache: cache, overviewCacheKey, persistentOverviewCache } })
+  vm.runInNewContext(code, { exports, URL, Worker, require: id => id === 'react' ? react : {
+    overviewCache: cache, persistentOverviewCache,
+    overviewCacheKey: () => { throw new Error('must never hash on the UI thread') },
+  } })
   const render = (input, enabled) => {
     const value = exports.useOverviewAggregation(input, enabled)
     if (pendingEffect) { cleanup?.(); cleanup = pendingEffect(); pendingEffect = undefined }
     return value
   }
+  const sendKey = async (worker, input) => worker.onmessage({ data: { type: 'key', key: await overviewCacheKey(input) } })
+  // A render must not inspect even one coordinate or road-part field.
+  const unreadable = [{ segmentId: 'guard', get line() { throw new Error('geometry read during render') } }]
+  assert.equal(render(unreadable, true).pending, true)
+  assert.equal(workers.at(-1).messages[0].tracks, unreadable)
   assert.equal(render(tracks, true).pending, true)
-  await new Promise(resolve => setImmediate(resolve))
-  const lines = [{ count: 2 }]
-  workers[0].onmessage({ data: lines })
-  assert.equal(disk.get(overviewCacheKey(tracks)), lines)
+  const first = workers.at(-1), lines = [{ count: 2 }]
+  await sendKey(first, tracks)
+  assert.equal(first.messages[1].type, 'aggregate')
+  assert.equal(first.messages.length, 2, 'geometry is sent only once')
+  await first.onmessage({ data: { type: 'result', lines } })
+  assert.equal(disk.get(await overviewCacheKey(tracks)), lines)
+  assert.equal(first.terminated, true)
   assert.equal(render(tracks, true).lines, lines)
   render([], false)
   const count = workers.length
-  const revisit = render(structuredClone(tracks), true)
-  assert.equal(revisit.lines, lines)
-  assert.equal(revisit.pending, false)
-  assert.equal(workers.length, count, 'cache hit must not start a worker')
+  assert.equal(render(tracks, true).lines, lines)
+  assert.equal(workers.length, count, 'same snapshot is an immediate hit')
+  const clone = structuredClone(tracks)
+  assert.equal(render(clone, true).pending, true)
+  const cloneWorker = workers.at(-1)
+  await sendKey(cloneWorker, clone)
+  assert.equal(render(clone, true).lines, lines)
+  assert.equal(cloneWorker.messages.length, 1, 'cloned content skips aggregation')
+  assert.equal(cloneWorker.terminated, true)
   const edited = structuredClone(tracks); edited[0].line[0].lat++
-  assert.equal(render(edited, true).pending, true)
-  await new Promise(resolve => setImmediate(resolve))
+  render(edited, true)
   const obsolete = workers.at(-1)
+  await sendKey(obsolete, edited)
   render(tracks, true)
-  obsolete.onmessage({ data: [{ count: 999 }] })
-  assert.equal(cache.get(overviewCacheKey(edited)), undefined)
+  await obsolete.onmessage({ data: { type: 'result', lines: [{ count: 999 }] } })
+  assert.equal(cache.get(await overviewCacheKey(edited)), undefined)
   assert.equal(render(tracks, true).lines, lines)
   const restored = structuredClone(tracks); restored[0].segmentId = 'restored'
-  disk.set(overviewCacheKey(restored), lines)
-  const beforeRestore = workers.length
+  disk.set(await overviewCacheKey(restored), lines)
   render(restored, true)
-  await new Promise(resolve => setImmediate(resolve))
+  const restoreWorker = workers.at(-1)
+  await sendKey(restoreWorker, restored)
   assert.equal(render(restored, true).lines, lines)
-  assert.equal(workers.length, beforeRestore, 'persistent cache hit skips aggregation after restart')
-  const cancelled = structuredClone(tracks); cancelled[0].segmentId = 'cancelled'
-  render(cancelled, true)
-  render(restored, true)
+  assert.equal(restoreWorker.messages.length, 1, 'persistent hit skips aggregation')
+  let resolveRead
+  pendingRead = new Promise(resolve => { resolveRead = resolve })
+  render(edited, true)
+  const cancelled = workers.at(-1)
+  const reading = sendKey(cancelled, edited)
+  // Wait until the key callback is actually awaiting the database.
   await new Promise(resolve => setImmediate(resolve))
-  assert.equal(workers.length, beforeRestore, 'cancelled cache reads must not start workers')
+  render(tracks, true)
+  resolveRead(undefined)
+  await reading
+  pendingRead = undefined
+  assert.equal(cancelled.messages.length, 1, 'cancelled reads must not start aggregation')
+  assert.equal(cancelled.terminated, true)
+  render(edited, true)
+  await workers.at(-1).onmessage({ data: { type: 'error' } })
+  assert.equal(render(edited, true).error, true)
+  assert.equal(render(edited, true).pending, false)
+  render([], false)
+  assert.equal(render(edited, true).pending, false)
+  workers.at(-1).onerror()
+  assert.equal(workers.at(-1).terminated, true)
   cleanup?.()
+})
+
+test('worker returns a compact key before aggregating the retained geometry', async () => {
+  const messages = [], self = { postMessage: message => messages.push(message) }
+  let aggregations = 0
+  const source = readFileSync(new URL('../src/components/map/overviewAggregation.worker.ts', import.meta.url), 'utf8')
+  const code = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText
+  vm.runInNewContext(code, { exports: {}, self, require: id => id === './overviewCache' ? { overviewCacheKey } : {
+    aggregateOverviewTracks: (input, simplified) => { aggregations++; assert.equal(input, tracks); assert.equal(simplified, false); return [] },
+  } })
+  await self.onmessage({ data: { type: 'prepare', tracks } })
+  assert.equal(messages[0].type, 'key')
+  assert.match(messages[0].key, /^sha256:[0-9a-f]{64}$/)
+  assert.equal(aggregations, 0)
+  await self.onmessage({ data: { type: 'aggregate' } })
+  assert.equal(aggregations, 1)
+  assert.equal(messages[1].type, 'result')
+  await self.onmessage({ data: { type: 'prepare', tracks: [{ get segmentId() { throw new Error('bad input') } }] } })
+  assert.equal(messages.at(-1).type, 'error')
 })
 
 test('persistent overview cache survives new instances, rejects changed input and bounds saved scopes', async () => {
   const factory = new IDBFactory()
   const cache = createPersistentOverviewCache(factory)
-  const key = overviewCacheKey(tracks), lines = [{ count: 2, positions: [[34, 109], [35, 110]] }]
+  const key = await overviewCacheKey(tracks), lines = [{ count: 2, positions: [[34, 109], [35, 110]] }]
   await cache.set(key, lines)
   const db = await new Promise((resolve, reject) => {
     const request = factory.open('trip-overview-cache', 1)
@@ -191,7 +271,7 @@ test('persistent overview cache survives new instances, rejects changed input an
   const restarted = createPersistentOverviewCache(factory)
   assert.deepEqual(await restarted.get(key), lines)
   const edited = structuredClone(tracks); edited[0].line[0].lat++
-  assert.equal(await restarted.get(overviewCacheKey(edited)), undefined)
+  assert.equal(await restarted.get(await overviewCacheKey(edited)), undefined)
   // Fixed timestamps avoid timing-dependent eviction assertions.
   const originalNow = Date.now
   let now = originalNow()

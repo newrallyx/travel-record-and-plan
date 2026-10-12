@@ -1,10 +1,14 @@
 const { contextBridge, ipcRenderer } = require('electron')
 
 contextBridge.exposeInMainWorld('roadtripDesktop', {
+  roadbook: {
+    exportPdf: (payload) => ipcRenderer.invoke('roadbook:export-pdf', payload),
+  },
   backup: {
     exportZip: (payload) => ipcRenderer.invoke('desktop-backup:export-zip', payload),
     importFile: () => ipcRenderer.invoke('desktop-backup:import-file'),
     commitImport: (importToken) => ipcRenderer.invoke('desktop-backup:commit-import', { importToken }),
+    commitPhotoCleanup: (referencedPhotoIds) => ipcRenderer.invoke('desktop-backup:commit-photo-cleanup', { referencedPhotoIds }),
     cancelImport: (importToken) => ipcRenderer.invoke('desktop-backup:cancel-import', { importToken }),
   },
   photoLibrary: {
@@ -20,6 +24,7 @@ contextBridge.exposeInMainWorld('roadtripDesktop', {
     savePhoto: (photo) => ipcRenderer.invoke('photo-library:save-photo', { photo }),
     savePhotos: (photos) => ipcRenderer.invoke('photo-library:save-photos', { photos }),
     deletePhoto: (photoId) => ipcRenderer.invoke('photo-library:delete-photo', { photoId }),
+    deletePhotos: (photoIds) => ipcRenderer.invoke('photo-library:delete-photos', { photoIds }),
     deleteTripData: (tripId, segmentIds) => (
       ipcRenderer.invoke('photo-library:delete-trip-data', { tripId, segmentIds })
     ),

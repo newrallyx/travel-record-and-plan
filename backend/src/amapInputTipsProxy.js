@@ -1,3 +1,5 @@
+import { requestUpstreamJson } from './upstreamRequest.js'
+
 const INPUT_TIPS_URL = 'https://restapi.amap.com/v3/assistant/inputtips'
 
 const DEFAULTS = {
@@ -59,6 +61,8 @@ class MinuteRateLimiter {
 }
 
 function writeJson(res, code, body) {
+  if (!body.ok && body.reason) body = { ...body, code: body.reason }
+  if (res.locals) res.locals.apiResult = { ok: body.ok, cached: body.cached, code: body.code }
   res.statusCode = code
   res.setHeader('Content-Type', 'application/json; charset=utf-8')
   res.end(JSON.stringify(body))
@@ -106,16 +110,6 @@ function normalizeTips(raw) {
       id: typeof item?.id === 'string' ? item.id : '',
     }))
     .filter((item) => item.location)
-}
-
-async function fetchWithTimeout(fetchImpl, url, timeoutMs) {
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), timeoutMs)
-  try {
-    return await fetchImpl(url, { signal: controller.signal })
-  } finally {
-    clearTimeout(timer)
-  }
 }
 
 export function createInputTipsProxyHandler(options) {
@@ -196,8 +190,7 @@ export function createInputTipsProxyHandler(options) {
     if (location) targetUrl.searchParams.set('location', location)
 
     try {
-      const upstream = await fetchWithTimeout(fetchImpl, targetUrl.toString(), requestTimeoutMs)
-      const payload = await upstream.json()
+      const { data: payload } = await requestUpstreamJson(targetUrl.toString(), { fetchImpl, timeoutMs: requestTimeoutMs })
       const normalized = normalizeTips(payload)
       const data = mode === 'city' ? normalized.filter(isAdministrativeLike) : normalized
       cache.set(cacheKey, data)

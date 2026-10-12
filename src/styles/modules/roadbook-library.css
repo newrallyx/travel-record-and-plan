@@ -63,15 +63,16 @@
 }
 
 .roadbook-library-map {
-  margin-bottom: 16px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-panel);
-  background: var(--surface);
+  margin-bottom: 12px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
   overflow: hidden;
 }
 
 .roadbook-library-map > summary {
-  padding: 10px 14px;
+  padding: 8px 0;
   cursor: pointer;
   color: var(--ink-2);
   font-size: var(--font-body);
@@ -93,10 +94,11 @@
   flex-wrap: wrap;
   gap: 10px;
   margin-bottom: 16px;
-  padding: 12px 14px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-panel);
-  background: var(--surface);
+  padding: 0 0 12px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
 }
 
 .roadbook-filter-field {
@@ -110,7 +112,7 @@
 .roadbook-filter-field select,
 .roadbook-filter-field input {
   min-width: 130px;
-  padding: 6px 10px;
+  padding: 6px 30px 6px 10px;
   border: 1px solid var(--line-2);
   border-radius: var(--radius-sm);
   background: var(--surface);
@@ -219,9 +221,11 @@
   }
 }
 
-.roadbook-placeholder-art { position: relative; display: flex; flex-direction: column; justify-content: space-between; align-items: flex-start; width: 100%; height: 100%; padding: 20px; text-align: left; overflow: hidden; color: var(--primary-strong); background: linear-gradient(135deg, var(--primary-soft), var(--surface-2)); }
-.roadbook-placeholder-art svg { position: absolute; right: -12%; top: 0; width: 80%; height: 100%; opacity: .22; }
+.roadbook-library-stats { display: flex; flex-wrap: wrap; gap: 8px 24px; margin: 10px 0 14px; }
+.roadbook-library-stats .roadbook-stat { flex-direction: row; align-items: baseline; gap: 8px; padding: 0; border: 0; background: transparent; }
+.roadbook-placeholder-art { position: relative; display: flex; flex-direction: column; justify-content: space-between; align-items: flex-start; width: 100%; height: 100%; padding: 20px; text-align: left; overflow: hidden; color: var(--ink); background: var(--surface-3); }
+.roadbook-placeholder-art svg { position: absolute; right: -5%; top: 0; width: 80%; height: 100%; color: var(--primary); opacity: .2; }
 .roadbook-placeholder-art polyline { fill: none; stroke: currentColor; stroke-width: 3; stroke-linejoin: round; stroke-linecap: round; }
-.roadbook-placeholder-art strong { position: relative; max-width: 90%; font-size: clamp(18px, 2vw, 24px); line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
-.roadbook-placeholder-date, .roadbook-placeholder-caption { position: relative; font-size: var(--font-caption); }
+.roadbook-placeholder-art strong { position: relative; max-width: 90%; font-size: clamp(17px, 1.5vw, 20px); font-weight: 600; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+.roadbook-placeholder-date, .roadbook-placeholder-caption { position: relative; color: var(--ink-3); font-size: var(--font-caption); }
 .roadbook-card-meta { line-height: 1.7; }

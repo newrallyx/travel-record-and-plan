@@ -51,10 +51,12 @@ export function RoadComposition({ statistics, compact = false, currentLabel = '�
   )
 }
 
-export function NamedRoadTable({ statistics, compact = false, currentLabel = '本次', allScope = false }: {
+export function NamedRoadTable({ statistics, compact = false, currentLabel = '本次', allScope = false, onOpenArchive, onOpenFootprint, defaultExpanded = false }: {
   statistics: RoadStatisticsComparison; compact?: boolean; currentLabel?: string; allScope?: boolean
+  onOpenArchive?: (roadKey: string) => void; defaultExpanded?: boolean
+  onOpenFootprint?: (roadKey: string) => void
 }) {
-  const [expanded, setExpanded] = useState(false)
+  const [expanded, setExpanded] = useState(defaultExpanded)
   const contentId = useId()
   const contentVisible = compact || expanded
   const [showOtherHistory, setShowOtherHistory] = useState(false)
@@ -128,6 +130,8 @@ export function NamedRoadTable({ statistics, compact = false, currentLabel = '�
               const names = presentRoadNames(row.roadNames, row.routeRef, row.roadClass)
               return <tr key={row.key}>
                 <th scope="row"><span>{formatIdentity(row)}</span>
+                  {onOpenArchive && <button type="button" className="statistics-road-archive-link" onClick={() => onOpenArchive(row.key)} aria-label={`查看${formatIdentity(row)}道路档案`}>查看档案 ›</button>}
+                  {onOpenFootprint && <button type="button" className="statistics-road-archive-link" onClick={() => onOpenFootprint(row.key)} aria-label={`查看${formatIdentity(row)}道路足迹`}>查看足迹 ›</button>}
                   {names.summary && <small className="statistics-route-names statistics-route-summary" title={names.summary}>{names.summary}</small>}
                   {row.roadNames.length > 0 && <details className="statistics-road-name-details">
                     <summary>历史记录名称（{row.roadNames.length}）{names.conflicts.length > 0 && <span className="statistics-name-conflict"> · 含其他编号</span>}</summary>
@@ -148,7 +152,7 @@ export function NamedRoadTable({ statistics, compact = false, currentLabel = '�
           </tbody>
         </table>
       </div>
-       <p className="statistics-road-note">道路里程来自规划路线分析。按{distanceLabel}里程排序，占比的分母为{currentLabel}规划总里程（{formatNullableDistance(statistics.current.plannedDistanceMeters.value)}），随年份或旅程选择变化，不受搜索、类型或省份筛选影响。省份待确认不会合入任何已知省份。</p>
+       <p className="statistics-road-note">道路里程含已标注的共线区间，各道路里程和占比可能重叠，不能相加作为总行驶里程；道路类型组成仍按主道路计算一次。按{distanceLabel}里程排序，占比的分母为{currentLabel}规划总里程（{formatNullableDistance(statistics.current.plannedDistanceMeters.value)}），随年份或旅程选择变化，不受搜索、类型或省份筛选影响。省份待确认不会合入任何已知省份。</p>
       </div>
     </section>
   )

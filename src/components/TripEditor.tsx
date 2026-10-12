@@ -330,9 +330,9 @@ function TripEditor({
           disabled={isReadonlyMode || !segmentTripId}
         />
 
-        <div className="waypoint-section">
-          <p>途经点（Waypoints）</p>
-          <p>途经点数量：{segmentWaypoints.length}</p>
+        <details className="trip-editor-options">
+          <summary>途经点（可选）<span>{segmentWaypoints.length} 个</span></summary>
+          <div className="waypoint-section trip-editor-options-body">
           <div className="waypoint-actions">
             <button type="button" disabled={isReadonlyMode} onClick={() => setSegmentWaypoints((prev) => [...prev, { id: createId('wp'), name: '' }])}>
               + 添加途经点
@@ -407,8 +407,12 @@ function TripEditor({
               </li>
             ))}
           </ul>
-        </div>
+          </div>
+        </details>
 
+        <details className="trip-editor-options">
+          <summary>路线设置<span>{segmentRouteType === 'CYCLING' ? '骑行 · 走小路' : `驾车 · ${routePreferenceOptions.find(option => option.value === segmentPreference)?.label}`}</span></summary>
+          <div className="trip-editor-options-body">
         <label className="form-field" htmlFor="new-segment-route-type">
           <span>路线类型</span>
         <select id="new-segment-route-type" value={segmentRouteType} onChange={(e) => setSegmentRouteType(e.target.value as RouteType)} disabled={isReadonlyMode}>
@@ -433,6 +437,11 @@ function TripEditor({
         </select>
         </label>
 
+          </div>
+        </details>
+        <details className="trip-editor-options">
+          <summary>评分与备注（可选）<span>{segmentScenicScore !== null || segmentDifficultyScore !== null || segmentNote.trim() ? '已填写' : '未填写'}</span></summary>
+          <div className="trip-editor-options-body">
         <SegmentScoreFields
           title="新增路段评分（可选）"
           values={{ scenicScore: segmentScenicScore, difficultyScore: segmentDifficultyScore }}
@@ -456,6 +465,8 @@ function TripEditor({
             disabled={isReadonlyMode}
           />
         </label>
+          </div>
+        </details>
 
         <button type="submit" className="btn-primary" disabled={isReadonlyMode || !segmentTripId || !segmentDayDate || !segmentName.trim()}>
           添加路段

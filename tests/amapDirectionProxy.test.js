@@ -62,7 +62,9 @@ test('driving proxy uses current key and requests detailed polyline data', async
 
   assert.ok(upstreamUrl)
   assert.equal(upstreamUrl.searchParams.get('key'), 'dynamic-key')
-  assert.equal(upstreamUrl.searchParams.get('extensions'), 'all')
+  assert.equal(upstreamUrl.pathname, '/v5/direction/driving')
+  assert.equal(upstreamUrl.searchParams.get('show_fields'), 'cost,polyline,navi,cities')
+  assert.equal(upstreamUrl.searchParams.get('strategy'), '1')
   assert.equal(upstreamUrl.searchParams.get('output'), 'json')
   assert.equal(upstreamUrl.searchParams.get('waypoints'), '104.0,30.5;103.5,30.2')
 })

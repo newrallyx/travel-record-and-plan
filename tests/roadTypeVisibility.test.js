@@ -4,6 +4,8 @@ import { readFileSync } from 'node:fs'
 import vm from 'node:vm'
 import ts from 'typescript'
 import * as roadTypes from '../src/components/map/roadTypeVisualization.ts'
+import * as segmentScores from '../src/utils/segmentScores.ts'
+import { DIFFICULTY_SCORE_BANDS } from '../src/config/roadStatistics.ts'
 
 function loadComponent(file, modules) {
   const code = ts.transpileModule(readFileSync(new URL(file, import.meta.url), 'utf8'), {
@@ -12,7 +14,7 @@ function loadComponent(file, modules) {
   const exports = {}
   const jsx = (type, props, key) => ({ type, props, key })
   vm.runInNewContext(code, { exports, window: {}, require: id => {
-    if (id === 'react') return { useMemo: fn => fn(), useState: initial => [initial, () => {}], useEffect() {} }
+    if (id === 'react') return { useMemo: fn => fn(), useState: initial => [initial, () => {}], useEffect() {}, useId: () => 'color-controls' }
     if (id === 'react/jsx-runtime') return { jsx, jsxs: jsx }
     assert.ok(id in modules, `missing module ${id}`)
     return modules[id]
@@ -27,13 +29,11 @@ function nodes(tree, predicate) {
 }
 
 test('road controls toggle unknown independently and include it in select all / select none', () => {
-  const { default: FilterPanel } = loadComponent('../src/components/FilterPanel.tsx', {
-    './map/roadTypeVisualization': roadTypes,
-    '../utils/date': { sortTripDaysByDate: days => days },
-    '../utils/tripYear': { getSelectedYear: () => '', getTripYear: () => '', filterTripsByYear: trips => trips },
+  const { default: RouteColorControls } = loadComponent('../src/components/map/RouteColorControls.tsx', {
+    './roadTypeVisualization': roadTypes,
   })
   let visibility = { ...roadTypes.DEFAULT_ROAD_TYPE_VISIBILITY }
-  const render = () => FilterPanel({ trips: [], filters: {}, routeColorMode: 'roadType',
+  const render = () => RouteColorControls({ canUseScoreColoring: true, routeColorMode: 'roadType',
     roadTypeVisibility: visibility, onChangeRoadTypeVisibility: value => { visibility = value } })
   const options = nodes(render(), node => node.type === 'label' && node.props.className === 'road-type-visibility-option')
   assert.equal(options.length, 5)
@@ -59,15 +59,15 @@ test('road controls toggle unknown independently and include it in select all / 
 
 test('detail tracks filter unknown parts and unanalyzed fallback lines without hiding known roads or other color modes', () => {
   const { MapCanvas } = loadComponent('../src/components/map/MapCanvas.tsx', {
-    'react-leaflet': Object.fromEntries(['MapContainer', 'Marker', 'Popup', 'Polyline', 'TileLayer'].map(name => [name, name])),
+    'react-leaflet': Object.fromEntries(['MapContainer', 'Marker', 'Pane', 'Popup', 'Polyline', 'TileLayer'].map(name => [name, name])),
+    '../../config/roadStatistics': { DIFFICULTY_SCORE_BANDS },
     './roadTypeVisualization': roadTypes,
     './OverviewRouteLayer': {}, './overviewAggregation': {}, './MapControllers': {}, './mapIcons': {},
     './PhotoMarkerLayer': {}, '../../utils/distance': {},
     './trackUtils': { DEFAULT_MAP_CENTER: [34, 109], OVERVIEW_MAX_POINTS_PER_SEGMENT: 220,
       toLatLng: points => points.map(point => [point.lat, point.lon]) },
     './visibleTrackPoints': { getVisibleTrackPoints: () => [] },
-    '../../utils/segmentScores': { getSegmentDisplayColor: () => '#4f46e5', getSegmentScore: () => 8,
-      getScoreGradient: () => [] },
+    '../../utils/segmentScores': segmentScores,
   })
   const line = [{ lat: 34, lon: 109 }, { lat: 35, lon: 110 }]
   const part = roadClass => ({ roadClass, polyline: line.map(point => [point.lat, point.lon]) })
@@ -88,5 +88,17 @@ test('detail tracks filter unknown parts and unanalyzed fallback lines without h
   const none = Object.fromEntries(roadTypes.ROAD_TYPE_VISIBILITY_CATEGORIES.map(key => [key, false]))
   assert.equal(render(none).length, 0)
   assert.equal(render({ ...none, UNKNOWN: true }).length, 3)
-  for (const mode of ['default', 'scenic', 'difficulty']) assert.equal(render(none, mode).length, 3)
+  for (const mode of ['default', 'scenic']) {
+    const paths = render(none, mode)
+    assert.equal(paths.length, 3)
+    assert.ok(paths.every(path => path.props.pathOptions.weight === 2))
+  }
+  const difficultyPaths = render(none, 'difficulty')
+  assert.equal(difficultyPaths.length, 6)
+  const outlines = difficultyPaths.filter(path => path.props.pathOptions.interactive === false)
+  const foreground = difficultyPaths.filter(path => path.props.pathOptions.interactive !== false)
+  assert.equal(outlines.length, 3)
+  assert.ok(outlines.every(path => path.props.pathOptions.weight === 5))
+  assert.ok(foreground.every(path => path.props.pathOptions.weight === 3 && path.props.pathOptions.opacity === 1))
+  assert.ok(foreground.every(path => path.props.pathOptions.color === segmentScores.UNRATED_SEGMENT_COLOR))
 })

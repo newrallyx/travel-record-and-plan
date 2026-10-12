@@ -477,6 +477,8 @@ export function restoreAutomaticRoadPartClassification(
           roadClass: 'UNKNOWN' as const,
           routeRef: undefined,
           manualDirection: undefined,
+          concurrentRoads: undefined,
+          manualAnnotationId: undefined,
           confidence: 'LOW' as const,
           source: 'FALLBACK' as const,
         }
@@ -513,6 +515,7 @@ export function mergeAdjacentRoadParts(parts: readonly RouteRoadPart[]): RouteRo
       && previous.roadClass === part.roadClass
       && !isRoadConnector(previous) && !isRoadConnector(part)
       && sameProvinceIdentity(previous, part)
+      && JSON.stringify(previous.concurrentRoads ?? []) === JSON.stringify(part.concurrentRoads ?? [])
       && previous.source !== 'MANUAL'
       && part.source !== 'MANUAL'
     ) {

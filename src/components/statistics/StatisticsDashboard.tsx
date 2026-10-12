@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useState } from 'react'
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type {
   ScoreDistribution,
   TripStatisticsBreakdown,
@@ -23,6 +23,12 @@ import {
 import { useTripStatistics } from '../../hooks/useTripStatistics.ts'
 import { NamedRoadTable, RoadComposition } from './RoadStatisticsPanels.tsx'
 import RoadAnalysisManager from './RoadAnalysisManager.tsx'
+import RoadArchivePanel from './RoadArchivePanel.tsx'
+import RoadFootprintPanel from './RoadFootprintPanel.tsx'
+import AnnualTravelReview from './AnnualTravelReview.tsx'
+import TripCompletenessPanel from './TripCompletenessPanel.tsx'
+import { confirmDialog } from '../ConfirmDialog.tsx'
+import type { TravelRecordTarget } from '../../utils/travelRetrospective.ts'
 import type { ResolvedRoutePatch } from '../map/types.ts'
 import {
   COMPLETENESS_LABEL,
@@ -45,6 +51,7 @@ interface StatisticsDashboardProps {
   currentSegmentId?: string
   isReadonlyMode?: boolean
   onRouteReplacement: (patch: ResolvedRoutePatch) => void
+  onNavigateRecord: (target: TravelRecordTarget, photos?: boolean, edit?: boolean) => void
 }
 
 interface DistributionView {
@@ -218,10 +225,12 @@ function TripBreakdownTable({
   rows,
   sort,
   onChangeSort,
+  onNavigateRecord,
 }: {
   rows: readonly TripStatisticsBreakdown[]
   sort: TripStatisticsSort
   onChangeSort: (key: TripStatisticsSortKey) => void
+  onNavigateRecord: (target: TravelRecordTarget) => void
 }) {
   const [expanded, setExpanded] = useState(false)
   const contentId = useId()
@@ -257,7 +266,7 @@ function TripBreakdownTable({
             {rows.map((trip) => (
               <tr key={trip.tripId}>
                 <th scope="row">
-                  <span className="statistics-trip-title">{trip.title}</span>
+                  <button type="button" className="statistics-trip-title statistics-trip-link" onClick={() => onNavigateRecord({ tripId: trip.tripId, dayId: '', segmentId: '' })} aria-label={`查看旅程：${trip.title}`}>{trip.title}</button>
                   <small>{trip.segmentCount} 个路段</small>
                 </th>
                 <td><MetricValue metric={trip.plannedDistanceMeters} kind="distance" /></td>
@@ -283,11 +292,23 @@ function TripBreakdownTable({
   )
 }
 
-function StatisticsDashboard({ trips, currentTripId, currentSegmentId, isReadonlyMode, onRouteReplacement }: StatisticsDashboardProps) {
+function StatisticsDashboard({ trips, currentTripId, currentSegmentId, isReadonlyMode, onRouteReplacement, onNavigateRecord }: StatisticsDashboardProps) {
+  const dashboardRef = useRef<HTMLElement>(null)
+  const [feature, setFeature] = useState<'overview' | 'roads' | 'annual'>('overview')
+  const [selectedRoadKey, setSelectedRoadKey] = useState<string | null>(null)
+  const [footprintRoadKey, setFootprintRoadKey] = useState<string | null>(null)
+  const openRoadArchive = (key: string) => { setSelectedRoadKey(key); setFeature('roads') }
   const [filter, setFilter] = useState<StatisticsDashboardFilter>(DEFAULT_STATISTICS_FILTER)
   const [sort, setSort] = useState<TripStatisticsSort>(DEFAULT_TRIP_STATISTICS_SORT)
   const [distributionMode, setDistributionMode] = useState<DistributionMode>('plannedMileage')
   const [cacheRevision, setCacheRevision] = useState(0)
+  const [analysisTarget, setAnalysisTarget] = useState<(TravelRecordTarget & { revision: number })>()
+  const [correctionDirty, setCorrectionDirty] = useState(false)
+
+  useLayoutEffect(() => {
+    // 足迹页与统计列表共用滚动容器，打开时回到地图上方。
+    if (footprintRoadKey && dashboardRef.current) dashboardRef.current.scrollTop = 0
+  }, [footprintRoadKey])
 
   const reviewTrips = useMemo(() => getStatisticsTripOptions(trips), [trips])
   const years = useMemo(() => getStatisticsYears(trips), [trips])
@@ -302,7 +323,7 @@ function StatisticsDashboard({ trips, currentTripId, currentSegmentId, isReadonl
   }, [filter.scope, filter.tripId, filter.year, reviewTrips, years])
 
   const filteredTrips = useMemo(() => filterStatisticsTrips(trips, filter), [filter, trips])
-  const { statistics, cacheStatus } = useTripStatistics(filteredTrips, trips, cacheRevision)
+  const { statistics, cacheStatus, routeCaches, retryCacheLoad } = useTripStatistics(filteredTrips, trips, cacheRevision)
   const summary = statistics.current
   const rows = useMemo(() => sortTripStatisticsRows(summary.tripBreakdown, sort), [sort, summary.tripBreakdown])
 
@@ -341,20 +362,33 @@ function StatisticsDashboard({ trips, currentTripId, currentSegmentId, isReadonl
   }
 
   return (
-    <section className="statistics-dashboard" aria-label="数据统计">
+    <section ref={dashboardRef} className="statistics-dashboard" aria-label="数据统计">
       <header className="statistics-dashboard-header">
         <div>
           <h2>数据统计</h2>
-          <p>从已复盘旅程中查看规划、实际记录与评分覆盖情况。所有实际数据均与预计数据独立统计。</p>
+          <p>复盘旅程的里程、驾驶时间与评分。预计与实际分别统计。</p>
         </div>
         {cacheStatus !== 'ready' && (
           <span className="statistics-cache-note">
-            {cacheStatus === 'loading' ? '正在读取路线分析缓存…' : '路线分析缓存暂不可用'}
+            {cacheStatus === 'loading' ? '正在读取路线分析缓存…' : '路线分析缓存读取失败'}
           </span>
         )}
       </header>
 
-      <div className="statistics-filter-bar" role="search" aria-label="筛选统计范围">
+      {cacheStatus === 'unavailable' && <p className="statistics-road-note" role="alert">
+        路线分析缓存读取失败，道路统计、档案和年度回顾暂不可用。旅程里程、驾驶时间与评分记录仍可查看。{' '}
+        <button type="button" className="btn-secondary" onClick={retryCacheLoad}>重试读取</button>
+      </p>}
+
+      {footprintRoadKey && <RoadFootprintPanel key={footprintRoadKey} roadKey={footprintRoadKey}
+        road={statistics.namedRoads.find(road => road.key === footprintRoadKey)} trips={trips} caches={routeCaches}
+        cacheStatus={cacheStatus} onBack={() => setFootprintRoadKey(null)} onNavigate={onNavigateRecord} />}
+      <div hidden={Boolean(footprintRoadKey)}>
+      <div className="statistics-toolbar">
+      <nav className="statistics-segmented-control retrospective-navigation" aria-label="统计功能">
+        {([['overview', '统计总览'], ['roads', '道路档案'], ['annual', '年度旅行回顾']] as const).map(([key, label]) => <button type="button" key={key} className={feature === key ? 'active' : ''} aria-pressed={feature === key} onClick={() => setFeature(key)}>{label}</button>)}
+      </nav>
+      <div className="statistics-filter-bar" role="search" aria-label="筛选统计范围" hidden={feature !== 'overview'}>
         <label>
           <span>统计范围</span>
           <select
@@ -388,8 +422,14 @@ function StatisticsDashboard({ trips, currentTripId, currentSegmentId, isReadonl
           <button type="button" className="btn-secondary" onClick={() => setFilter(DEFAULT_STATISTICS_FILTER)}>清除筛选</button>
         )}
       </div>
+      </div>
+      {feature === 'roads' && cacheStatus !== 'unavailable' && <RoadArchivePanel trips={trips} caches={routeCaches} selectedRoadKey={selectedRoadKey} onSelectRoad={setSelectedRoadKey} onNavigate={onNavigateRecord} loading={cacheStatus === 'loading'} onOpenFootprint={setFootprintRoadKey} />}
+      {feature === 'annual' && cacheStatus !== 'unavailable' && <AnnualTravelReview trips={trips} caches={routeCaches} onNavigate={onNavigateRecord} onOpenRoad={openRoadArchive} cacheStatus={cacheStatus} />}
+      <div hidden={feature !== 'overview'}>
 
       <RoadAnalysisManager
+        analysisTarget={analysisTarget}
+        onDraftStateChange={setCorrectionDirty}
         trips={trips}
         currentTripId={currentTripId}
         currentSegmentId={currentSegmentId}
@@ -418,15 +458,25 @@ function StatisticsDashboard({ trips, currentTripId, currentSegmentId, isReadonl
             <OverviewCard label="旅行天数" metric={summary.tripDays} kind="days" />
           </section>
 
-          <TripBreakdownTable rows={rows} sort={sort} onChangeSort={changeSort} />
+          <TripCompletenessPanel trips={filteredTrips} caches={routeCaches} cacheReady={cacheStatus === 'ready'}
+            onEdit={target => { void (async () => {
+              if (correctionDirty && !await confirmDialog({ title: '放弃未保存的道路修正', message: '当前道路修正有未保存的更改，确定放弃并进入记录编辑吗？', confirmText: '放弃更改' })) return
+              onNavigateRecord(target, false, true)
+            })() }}
+            onAnalyze={target => setAnalysisTarget(previous => ({ ...target, revision: (previous?.revision ?? 0) + 1 }))} />
+          <TripBreakdownTable rows={rows} sort={sort} onChangeSort={changeSort} onNavigateRecord={onNavigateRecord} />
           <DistributionModule mode={distributionMode} onChange={setDistributionMode} views={distributionViews} />
           <ScoreStatisticsModule title="风景评分" distribution={summary.scenicScoreDistribution} segmentCount={summary.segmentCount} />
           <ScoreStatisticsModule title="驾驶难度" distribution={summary.difficultyScoreDistribution} segmentCount={summary.segmentCount} />
 
-          <RoadComposition allScope={filter.scope === 'all' || (filter.scope === 'year' && !filter.year)} statistics={statistics} currentLabel={filter.scope === 'trip' ? '本次' : '当前范围'} />
-          <NamedRoadTable key={`${filter.scope}:${filter.year}:${filter.tripId}`} allScope={filter.scope === 'all' || (filter.scope === 'year' && !filter.year)} statistics={statistics} currentLabel={filter.scope === 'trip' ? '本次' : '当前范围'} />
+          {cacheStatus !== 'unavailable' && <>
+            <RoadComposition allScope={filter.scope === 'all' || (filter.scope === 'year' && !filter.year)} statistics={statistics} currentLabel={filter.scope === 'trip' ? '本次' : '当前范围'} />
+            <NamedRoadTable key={`${filter.scope}:${filter.year}:${filter.tripId}`} allScope={filter.scope === 'all' || (filter.scope === 'year' && !filter.year)} statistics={statistics} currentLabel={filter.scope === 'trip' ? '本次' : '当前范围'} onOpenArchive={openRoadArchive} onOpenFootprint={setFootprintRoadKey} />
+          </>}
         </>
       )}
+      </div>
+      </div>
     </section>
   )
 }

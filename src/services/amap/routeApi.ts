@@ -1,5 +1,6 @@
 import { LOCAL_API_CLIENT_HEADERS } from '../localApiClient.ts'
-import type { RouteApiResult } from './types'
+import type { DrivingRequestPoint, RouteApiResult } from './types'
+import type { WaypointRouteEstimate } from '../../types/trip.ts'
 import type { RouteRoadPart } from '../../types/roadStatistics.ts'
 import { classifyRoad, classifyRoadPartEvidence, normalizeRoadText, reclassifyRoadParts } from '../../utils/roadClassifier.ts'
 import {
@@ -149,6 +150,91 @@ export function parseDrivingPath(path: AmapDrivingPath): RouteApiResult {
   }
 }
 
+interface AmapV5Cost {
+  duration?: string | number
+  tolls?: string | number
+  toll_distance?: string | number
+  toll_road?: string
+}
+
+interface AmapV5Step {
+  road_name?: string
+  step_distance?: string | number
+  instruction?: string
+  polyline?: string
+  cost?: AmapV5Cost
+  navi?: { action?: string; assistant_action?: string }
+  cities?: unknown
+}
+
+interface AmapV5Path {
+  distance?: string | number
+  cost?: AmapV5Cost
+  steps?: AmapV5Step[]
+}
+
+/** 从同一次 V5 算路提取累计值；仅接受顺序完整且贴近输入坐标的途经地标记。 */
+export function parseDrivingPathV5(path: AmapV5Path, waypoints: DrivingRequestPoint[] = []): RouteApiResult {
+  const steps = path.steps ?? []
+  const result = parseDrivingPath({
+    distance: path.distance,
+    duration: path.cost?.duration,
+    tolls: path.cost?.tolls,
+    toll_distance: path.cost?.toll_distance,
+    steps: steps.map(step => ({
+      road: step.road_name,
+      distance: step.step_distance,
+      instruction: step.instruction,
+      polyline: step.polyline,
+      toll_distance: step.cost?.toll_distance,
+      toll_road: step.cost?.toll_road,
+      cities: step.cities,
+    })),
+  })
+  if (!waypoints.length) return result
+
+  const boundaries = steps.flatMap((step, index) =>
+    step.navi?.assistant_action === '到达途经地' || step.navi?.action === '到达途经地' ? [index] : [])
+  const unknown = waypoints.map(() => ({}))
+  const matched = boundaries.length === waypoints.length && boundaries.every((index, order) => {
+    const polyline = parsePolyline([steps[index]])
+    const last = polyline[polyline.length - 1]
+    if (!last) return false
+    const point = waypoints[order]
+    const north = (last[0] - point.lat) * 111320
+    const east = (last[1] - point.lng) * 111320 * Math.cos(point.lat * Math.PI / 180)
+    // 允许道路吸附的小幅偏移；大偏移/缺失标记不猜测、不按最近点切分。
+    return Math.hypot(north, east) <= 500
+  })
+  if (!matched) return { ...result, waypointEstimates: unknown }
+
+  let distance: number | undefined = 0
+  let duration: number | undefined = 0
+  const estimates: WaypointRouteEstimate[] = []
+  const boundarySet = new Set(boundaries)
+  steps.forEach((step, index) => {
+    const meters = parseNonNegativeNumber(step.step_distance)
+    const seconds = parseNonNegativeNumber(step.cost?.duration)
+    distance = distance !== undefined && meters !== undefined ? distance + meters : undefined
+    duration = duration !== undefined && seconds !== undefined ? duration + seconds : undefined
+    if (boundarySet.has(index)) estimates.push({
+      ...(distance !== undefined ? { distanceMeters: distance } : {}),
+      ...(duration !== undefined ? { durationSeconds: duration } : {}),
+    })
+  })
+  // 完整 steps 与全程明显不一致时，不把它们当作可靠的累计指标。
+  const distanceMismatch = distance !== undefined && result.distanceMeters !== undefined
+    && Math.abs(distance - result.distanceMeters) > Math.max(1, steps.length)
+  const durationMismatch = duration !== undefined && result.durationSeconds !== undefined
+    && Math.abs(duration - result.durationSeconds) > Math.max(1, steps.length)
+  return { ...result, waypointEstimates: estimates.map(estimate => ({
+    ...(!distanceMismatch && (result.distanceMeters === undefined || (estimate.distanceMeters ?? 0) <= result.distanceMeters)
+      && estimate.distanceMeters !== undefined ? { distanceMeters: estimate.distanceMeters } : {}),
+    ...(!durationMismatch && (result.durationSeconds === undefined || (estimate.durationSeconds ?? 0) <= result.durationSeconds)
+      && estimate.durationSeconds !== undefined ? { durationSeconds: estimate.durationSeconds } : {}),
+  })) }
+}
+
 export function parseCyclingPath(path: AmapCyclingPath): RouteApiResult {
   const distanceMeters = parseNonNegativeNumber(path.distance)
   const durationSeconds = parseNonNegativeNumber(path.duration)
@@ -186,7 +272,7 @@ export async function requestDrivingRoute(
       info?: string
       infocode?: string
       route?: {
-        paths?: AmapDrivingPath[]
+        paths?: AmapV5Path[]
       }
     }
   }
@@ -205,7 +291,9 @@ export async function requestDrivingRoute(
   const path = payload.route?.paths?.[0]
   if (!path) throw new Error('高德未返回可用路线。')
 
-  const result = parseDrivingPath(path)
+  const viaPoints = (waypoints ?? '').split(/[|;]/).filter(Boolean).map(parseLocationText)
+  if (viaPoints.some(point => !point)) throw new Error('途经点坐标无效。')
+  const result = parseDrivingPathV5(path, viaPoints as DrivingRequestPoint[])
   if (!result.polyline.length) throw new Error('高德返回路线为空。')
   return result
 }

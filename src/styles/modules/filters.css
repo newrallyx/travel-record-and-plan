@@ -53,7 +53,13 @@
   min-width: 0;
   min-height: 0;
   overflow: visible;
-  padding: 8px 12px;
+  padding: 6px 8px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: var(--surface);
+  box-shadow: none;
+  animation: none;
   z-index: 30;
   container-name: trip-filters;
   container-type: inline-size;
@@ -69,7 +75,7 @@
 .trip-editor-launchers button {
   border-color: var(--line-2);
   color: var(--ink-2);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   min-height: var(--control-min-height);
   font-weight: 500;
 }
@@ -83,7 +89,7 @@
   border-color: var(--primary-line);
   background: var(--primary-soft);
   color: var(--primary-strong);
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+  box-shadow: none;
 }
 
 .trip-editor-form {
@@ -275,10 +281,10 @@
   min-width: 0;
   max-width: 100%;
   margin: 0;
-  padding: 3px 8px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: var(--surface-2);
+  padding: 3px 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   color: var(--ink-3);
   white-space: normal;
   line-height: 1.35;
@@ -321,6 +327,15 @@
   letter-spacing: 0.02em;
 }
 
+.planning-roadbook-export-button {
+  flex: none;
+  margin-left: auto;
+  min-height: 32px;
+  padding: 4px 9px;
+  font-size: var(--font-caption);
+  white-space: nowrap;
+}
+
 .route-color-mode-options {
   display: inline-flex;
   flex: 0 1 auto;
@@ -328,7 +343,7 @@
   gap: 0;
   padding: 2px;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   background: var(--surface-2);
 }
 
@@ -339,7 +354,7 @@
   min-height: 32px;
   padding: 4px 9px;
   border: 1px solid transparent;
-  border-radius: 7px;
+  border-radius: var(--radius-sm);
   background: transparent;
   font-size: var(--font-caption);
   color: var(--ink-2);
@@ -354,7 +369,7 @@
 }
 
 .route-color-mode-option.active {
-  border-color: var(--line);
+  border-color: var(--primary-line);
   background: var(--surface);
   color: var(--primary-strong);
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);

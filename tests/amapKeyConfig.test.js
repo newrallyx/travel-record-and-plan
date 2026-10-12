@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { createServer } from 'node:http'
-import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, readdir, rm } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { createApp } from '../backend/src/app.js'
@@ -129,4 +129,56 @@ test('local API rejects missing client proof and non-allowlisted browser origins
     },
   })
   assert.equal(trustedOriginResponse.status, 200)
+})
+
+test('API malformed JSON, large bodies and unknown endpoints return structured errors without logging secrets', async (t) => {
+  const diagnostics = []
+  const server = await startTestServer({ onApiRequest: (entry) => diagnostics.push(entry) })
+  t.after(server.close)
+  const request = (body) => fetch(`${server.baseUrl}/api/config/amap-key?key=secret-query`, {
+    method: 'POST', headers: { ...LOCAL_API_HEADERS, 'Content-Type': 'application/json' }, body,
+  })
+  const malformed = await request('{"key":"secret-body"')
+  assert.equal(malformed.status, 400)
+  assert.equal((await malformed.json()).code, 'INVALID_JSON')
+  const oversized = await request(JSON.stringify({ key: 'a'.repeat(70 * 1024) }))
+  assert.equal(oversized.status, 413)
+  assert.equal((await oversized.json()).code, 'PAYLOAD_TOO_LARGE')
+  const unknown = await fetch(`${server.baseUrl}/api/unknown`, { headers: LOCAL_API_HEADERS })
+  assert.equal(unknown.status, 404)
+  assert.equal((await unknown.json()).code, 'API_NOT_FOUND')
+  assert.equal(diagnostics.length, 3)
+  assert.equal(JSON.stringify(diagnostics).includes('secret'), false)
+  assert.equal(diagnostics[0].endpoint, '/api/config/amap-key')
+})
+
+test('concurrent successful key updates persist the final key', async (t) => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'roadtrip-key-atomic-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const configPath = path.join(directory, 'config.json')
+  const server = await startTestServer({ amapWebApiKey: 'original-key', apiKeyConfigPath: configPath })
+  t.after(server.close)
+  const post = (key) => fetch(`${server.baseUrl}/api/config/amap-key`, {
+    method: 'POST', headers: { ...LOCAL_API_HEADERS, 'Content-Type': 'application/json' }, body: JSON.stringify({ key }),
+  })
+  const responses = await Promise.all([post('first-valid-key'), post('second-valid-key')])
+  assert.ok(responses.every((response) => response.status === 200))
+  assert.equal(JSON.parse(await readFile(configPath, 'utf8')).AMAP_WEB_API_KEY, 'second-valid-key')
+})
+
+test('failed config replacement keeps the active configuration and removes its temporary file', async (t) => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'roadtrip-key-failure-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const configPath = path.join(directory, 'occupied.json')
+  await mkdir(configPath)
+  const server = await startTestServer({ amapWebApiKey: 'original-valid-key', apiKeyConfigPath: configPath })
+  t.after(server.close)
+  const response = await fetch(`${server.baseUrl}/api/config/amap-key`, {
+    method: 'POST', headers: { ...LOCAL_API_HEADERS, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ key: 'replacement-valid-key' }),
+  })
+  assert.equal(response.status, 500)
+  const status = await fetch(`${server.baseUrl}/api/config/amap-key`, { headers: LOCAL_API_HEADERS })
+  assert.deepEqual(await status.json(), { ok: true, configured: true, source: 'environment' })
+  assert.deepEqual(await readdir(directory), ['occupied.json'])
 })

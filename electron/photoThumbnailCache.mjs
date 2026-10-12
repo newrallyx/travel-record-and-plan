@@ -1,4 +1,4 @@
-import { mkdir, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises'
+import { copyFile, mkdir, open, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { randomUUID } from 'node:crypto'
 
@@ -110,34 +110,108 @@ export class PhotoThumbnailCache {
   }
 
   async replaceAll(entries) {
+    const replacement = await this.prepareReplacement(entries)
+    try {
+      await replacement.commit()
+    } catch (error) {
+      try { await replacement.rollback() } catch (rollbackError) {
+        throw new AggregateError([error, rollbackError], 'Thumbnail replacement rollback was incomplete.')
+      }
+      throw error
+    }
+    await replacement.finalize()
+  }
+
+  async prepareReplacement(entries) {
     if (!Array.isArray(entries)) throw new Error('Thumbnail replacement entries must be an array.')
     const stagingPath = `${this.directoryPath}.staging-${randomUUID()}`
     const backupPath = `${this.directoryPath}.backup-${randomUUID()}`
     const stagingCache = new PhotoThumbnailCache(stagingPath)
     await mkdir(stagingPath, { recursive: true })
+    let movedExisting = false
+    let installed = false
     try {
+      const ids = new Set()
       for (const entry of entries) {
         if (!entry || typeof entry !== 'object') throw new Error('Thumbnail replacement entry is invalid.')
-        await stagingCache.save(entry.photoId, entry.data)
+        const id = normalizePhotoId(entry.photoId)
+        if (ids.has(id)) throw new Error('Thumbnail replacement contains duplicate ids.')
+        ids.add(id)
+        if (entry.filePath) {
+          const destination = stagingCache.getCachePath(id)
+          await copyFile(entry.filePath, destination)
+          await validateThumbnailFile(destination)
+        } else {
+          await stagingCache.save(id, entry.data)
+        }
       }
-
-      let movedExisting = false
-      try {
-        await rename(this.directoryPath, backupPath)
-        movedExisting = true
-      } catch (error) {
-        if (error?.code !== 'ENOENT') throw error
-      }
-
-      try {
-        await rename(stagingPath, this.directoryPath)
-      } catch (error) {
-        if (movedExisting) await rename(backupPath, this.directoryPath)
-        throw error
-      }
-      if (movedExisting) await rm(backupPath, { recursive: true, force: true })
-    } finally {
+    } catch (error) {
       await rm(stagingPath, { recursive: true, force: true })
+      throw error
+    }
+    return {
+      commit: async () => {
+        try {
+          await rename(this.directoryPath, backupPath)
+          movedExisting = true
+        } catch (error) { if (error?.code !== 'ENOENT') throw error }
+        await rename(stagingPath, this.directoryPath)
+        installed = true
+      },
+      rollback: async () => {
+        if (installed) await rm(this.directoryPath, { recursive: true, force: true })
+        if (movedExisting) await rename(backupPath, this.directoryPath)
+        await rm(stagingPath, { recursive: true, force: true })
+      },
+      finalize: async () => {
+        // Cleanup cannot turn an already committed restore into a reported failure.
+        if (movedExisting) await rm(backupPath, { recursive: true, force: true }).catch((error) => {
+          console.warn('[photos] Old thumbnail directory cleanup failed.', { code: error?.code })
+        })
+      },
     }
   }
+
+  async prepareDeletion(photoIds) {
+    const ids = [...new Set(photoIds.map(normalizePhotoId))]
+    const backupPath = `${this.directoryPath}.deleting-${randomUUID()}`
+    await mkdir(backupPath, { recursive: true })
+    const moved = []
+    const rollback = async () => {
+      for (const id of moved) await rename(path.join(backupPath, this.getCacheKey(id)), this.getCachePath(id))
+      await rm(backupPath, { recursive: true, force: true })
+    }
+    try {
+      for (const id of ids) {
+        try {
+          await rename(this.getCachePath(id), path.join(backupPath, this.getCacheKey(id)))
+          moved.push(id)
+        } catch (error) { if (error?.code !== 'ENOENT') throw error }
+      }
+    } catch (error) {
+      try { await rollback() } catch (rollbackError) {
+        throw new AggregateError([error, rollbackError], 'Photo deletion rollback was incomplete.')
+      }
+      throw error
+    }
+    return {
+      rollback,
+      deletedThumbnailIds: moved,
+      finalize: () => rm(backupPath, { recursive: true, force: true }).catch((error) => {
+        console.warn('[photos] Deleted thumbnail directory cleanup failed.', { code: error?.code })
+      }),
+    }
+  }
+}
+
+export async function validateThumbnailFile(filePath) {
+  const file = await open(filePath, 'r')
+  try {
+    const info = await file.stat()
+    if (!info.isFile() || info.size > MAX_THUMBNAIL_SIZE) throw new Error('Thumbnail exceeds the 5 MB safety limit.')
+    const header = Buffer.alloc(12)
+    const { bytesRead } = await file.read(header, 0, 12, 0)
+    if (bytesRead !== 12 || !isWebp(header)) throw new Error('Thumbnail must be encoded as WebP.')
+    return { filePath, size: info.size }
+  } finally { await file.close() }
 }

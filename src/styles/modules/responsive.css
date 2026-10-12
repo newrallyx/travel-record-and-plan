@@ -22,7 +22,7 @@
     gap: 4px;
     padding: 4px;
     border: 1px solid var(--line);
-    border-radius: 12px;
+    border-radius: var(--radius-panel);
   }
 
   .compact-panel-tabs button {
@@ -34,7 +34,7 @@
     font-size: 13px;
     font-weight: 700;
     white-space: nowrap;
-    border-radius: 9px;
+    border-radius: var(--radius-sm);
   }
 
   .compact-panel-tabs button:hover:not(.active) {

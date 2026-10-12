@@ -3,10 +3,12 @@ import type { SegmentTrack } from './types.ts'
 import { ROAD_DIRECTION_NAMES, readRoadDestination, oppositeRoadDestination, roadDirectionReferenceKey, roadDisplayName, isRoadConnector } from './roadDirectionNames.ts'
 import { inferControlPointDirection, groundDistanceKm } from './roadControlPointDirection.ts'
 import { connectorInstructionMetres } from '../../utils/roadConnector.ts'
+import { extractRouteRef } from '../../utils/roadClassifier.ts'
+import { normalizeConcurrentRoads, roadIdentityKey } from '../../utils/roadMemberships.ts'
 
 type XY = { x: number; y: number }
 type Edge = { a: XY; b: XY; length: number; sourceIndex?: number; sourceFraction?: number }
-type Evidence = { manualDirection?: string; roadClass: RoadClass; routeRef: string; manual: boolean; ramp: boolean; hoverMainline?: boolean; roadName?: string; destination?: string;
+type Evidence = { manualDirection?: string; roadClass: RoadClass; routeRef: string; provinceCode?: string; roadIdentities?: string[]; manual: boolean; ramp: boolean; hoverMainline?: boolean; roadName?: string; destination?: string;
   referenceKey?: string; nameSource?: 'text' | 'control-points' | 'manual'; anchors?: readonly [string, string]; destinationConflict?: boolean }
 type Visit = Evidence & { from: number; to: number; source: string; start: number; end: number; direction: number; actualA: XY; actualB: XY }
 type Representative = Edge & { evidence: Evidence; visits: Visit[] }
@@ -31,6 +33,8 @@ export interface OverviewLine {
   roadClass: RoadClass
   sourceIds: string[]
   routeRef?: string
+  /** Local primary and concurrent identities, independent of their display order. */
+  roadIdentities?: string[]
   roadName?: string
   directionReferenceKey?: string
   directions?: { manualOverride?: boolean; forward: OverviewDirection; reverse: OverviewDirection; conflictingNames?: boolean;
@@ -107,9 +111,22 @@ function overlap(source: Edge, target: Edge, tolerance: number) {
 
 function evidenceFor(part: RouteRoadPart): Evidence {
   const routeRef = (part.routeRef ?? '').toUpperCase().replace(/[\s-]/g, '')
+  const namedRef = extractRouteRef(part.roadName)
+  // Manual road-number corrections retain the old navigation name. A different
+  // numbered connector must not veto the corrected highway when toll evidence
+  // confirms its mainline; explicit ramps/exits remain excluded.
+  const correctedMainline = part.source === 'MANUAL' && part.roadClass === 'EXPRESSWAY'
+    && Boolean(routeRef && namedRef && namedRef !== routeRef)
+    && /连接线|联络线/.test(part.roadName ?? '')
+    && !/匝道|辅路|收费站|服务区|出口|入口/.test(part.roadName ?? '')
+    && extractRouteRef(part.tollRoad) === routeRef && !isRoadConnector({ roadName: part.tollRoad })
   return {
     roadClass: part.roadClass,
     routeRef,
+    provinceCode: part.provinceCode,
+    roadIdentities: [...new Set([part, ...normalizeConcurrentRoads(part.concurrentRoads, part)]
+      .filter(road => extractRouteRef(road.routeRef))
+      .flatMap(road => roadIdentityKey(road) ?? []))].sort(),
     roadName: part.roadName,
     destination: part.manualDirection ? (part.manualDirection === 'pending' ? undefined : part.manualDirection) : readRoadDestination(part, routeRef),
     manualDirection: part.manualDirection,
@@ -117,6 +134,7 @@ function evidenceFor(part: RouteRoadPart): Evidence {
     nameSource: part.manualDirection ? 'manual' : 'text',
     manual: part.source === 'MANUAL',
     ramp: isRoadConnector(part),
+    hoverMainline: correctedMainline || undefined,
   }
 }
 
@@ -139,7 +157,7 @@ function attributedEdges(track: SegmentTrack, includeDirections: boolean): Array
     }
     // Legacy caches may have swallowed many steps into a single part. Restrict
     // their first-step connector label to its documented extent, not a fixed km rule.
-    const mergedConnector = base.ramp && base.roadClass === 'EXPRESSWAY' && Boolean(base.routeRef)
+    const mergedConnector = base.ramp && !base.hoverMainline && base.roadClass === 'EXPRESSWAY' && Boolean(base.routeRef)
       && connectorMetres !== undefined && partDistances[partDistances.length - 1] > connectorMetres * 1.1 + 20
     const reference = ROAD_DIRECTION_NAMES[base.referenceKey ?? '']
     const inferred = includeDirections && reference && !base.manualDirection && !base.ramp && (part.roadClass === 'EXPRESSWAY' || part.roadClass === 'NATIONAL_ROAD')
@@ -195,6 +213,7 @@ function addVisit(rep: Representative, visit: Visit) {
   if (previous && previous.source === visit.source && previous.direction === visit.direction && Math.abs(previous.end - visit.start) < EPS
     && previous.roadClass === visit.roadClass && previous.manual === visit.manual
     && previous.routeRef === visit.routeRef && previous.destination === visit.destination && previous.ramp === visit.ramp
+    && previous.provinceCode === visit.provinceCode && previous.roadIdentities?.join('|') === visit.roadIdentities?.join('|')
     && previous.hoverMainline === visit.hoverMainline
     && previous.manualDirection === visit.manualDirection
     && previous.referenceKey === visit.referenceKey && previous.nameSource === visit.nameSource
@@ -211,7 +230,11 @@ function addVisit(rep: Representative, visit: Visit) {
 
 function sameHighway(a: Evidence, b: Evidence) {
   return (a.roadClass === 'EXPRESSWAY' || a.roadClass === 'NATIONAL_ROAD') && a.roadClass === b.roadClass
-    && a.routeRef !== '' && a.routeRef === b.routeRef && !a.ramp && !b.ramp
+    && Boolean(a.routeRef && b.routeRef) && !a.ramp && !b.ramp
+    && ((a.routeRef === b.routeRef && roadIdentityKey(a) === roadIdentityKey(b))
+      // Only identical local membership sets can share representative geometry.
+      // Partial matches are resolved at the cursor, without transitive merging.
+      || (Boolean(a.roadIdentities?.length) && a.roadIdentities?.join('|') === b.roadIdentities?.join('|')))
 }
 
 /** Accumulate corridor support across samples, rather than requiring each sample to be long. */
@@ -281,7 +304,8 @@ export function aggregateOverviewTracks(tracks: readonly SegmentTrack[], include
       const matches = nearby.flatMap((rep) => {
         if ((edge.evidence.roadClass === 'EXPRESSWAY' || edge.evidence.roadClass === 'NATIONAL_ROAD')
           && edge.evidence.roadClass === rep.evidence.roadClass && edge.evidence.routeRef && rep.evidence.routeRef
-          && edge.evidence.routeRef !== rep.evidence.routeRef) return []
+          && roadIdentityKey(edge.evidence) !== roadIdentityKey(rep.evidence)
+          && !sameHighway(edge.evidence, rep.evidence)) return []
         const wide = offsetSupport.has(edge) && sameHighway(edge.evidence, rep.evidence)
         const match = overlap(edge, rep, (wide ? 25 : 2) * scale)
         if (!match) return []
@@ -316,7 +340,11 @@ export function aggregateOverviewTracks(tracks: readonly SegmentTrack[], include
       const positions: Array<[number, number]> = [unproject(lerp(rep.a, rep.b, from)), unproject(lerp(rep.a, rep.b, to))]
       const roadClass = resolveClass(visits)
       const refs = [...new Set(visits.map((v) => v.routeRef).filter(Boolean))]
-      const routeRef = refs.length === 1 ? refs[0] : undefined
+      const roadIdentities = [...new Set(visits.flatMap(v => v.roadIdentities ?? []))].sort()
+      // A swapped primary label must not erase the representative's display name.
+      const representativeIdentity = roadIdentityKey(rep.evidence)
+      const routeRef = refs.length === 1 ? refs[0]
+        : representativeIdentity && visits.every(v => v.roadIdentities?.includes(representativeIdentity)) ? rep.evidence.routeRef : undefined
       const referenceKeys = [...new Set(visits.map((v) => v.referenceKey))]
       const referenceKey = referenceKeys.length === 1 ? referenceKeys[0] : undefined
       const directional = includeDirections && (roadClass === 'EXPRESSWAY' || roadClass === 'NATIONAL_ROAD')
@@ -353,7 +381,7 @@ export function aggregateOverviewTracks(tracks: readonly SegmentTrack[], include
         mainline: visits.filter((visit) => !visit.ramp || visit.hoverMainline).length > visits.length / 2,
         firstClassRoad: visits.some((visit) => /一级公路/.test(visit.roadName ?? '')),
         sourceIds: [...new Set(visits.map((v) => v.source))].sort(),
-        routeRef, roadName: roadDisplayName(referenceKey ?? routeRef ?? '', roadClass, visits.find((v) => v.roadName)?.roadName),
+        routeRef, roadIdentities, roadName: roadDisplayName(referenceKey ?? routeRef ?? '', roadClass, visits.find((v) => v.roadName)?.roadName),
         ...(directional ? { directionReferenceKey: referenceKey,
           directions: { forward, reverse, manualOverride: manualVisits.length > 0, conflictingNames: forwardNames.size > 1 || visits.some((v) => v.destinationConflict),
             nameSource: manualVisits.length ? 'manual' : visits.some((v) => v.destination && v.nameSource === 'text') ? 'text'
@@ -401,9 +429,17 @@ function corridorSamples(lineEdges: LineEdge[]): XY[] {
 }
 
 export function createOverviewHoverIndex(lines: readonly OverviewLine[]) {
+  const lookup = createOverviewPassageIndex(lines)
+  return (line: OverviewLine, position: [number, number]) => lookup(line, position).count
+}
+
+/** The count and contributing records must come from the same corridor match. */
+export function createOverviewPassageIndex(lines: readonly OverviewLine[]) {
   const index = new EdgeIndex<LineEdge>()
   const identity = (line: OverviewLine) => line.routeRef
     || (line.firstClassRoad && line.roadName !== '一级公路' ? line.roadName : undefined)
+  const memberships = new Map(lines.map(line => [line, line.roadIdentities?.length ? line.roadIdentities
+    : (line.routeRef ? [`${line.roadClass}:${line.routeRef}`] : [])]))
   const eligible = (line: OverviewLine) => line.mainline && Boolean(identity(line))
     && (line.roadClass === 'EXPRESSWAY' || line.roadClass === 'NATIONAL_ROAD' || line.firstClassRoad)
   const edges = new Map<OverviewLine, LineEdge[]>()
@@ -420,7 +456,9 @@ export function createOverviewHoverIndex(lines: readonly OverviewLine[]) {
     edges.set(line, lineEdges)
   }
   const sameRoadAs = (line: OverviewLine) => (other: OverviewLine) => other.roadClass === line.roadClass
-    && identity(other) === identity(line)
+    && (line.routeRef && other.routeRef
+      ? memberships.get(line)!.some(key => memberships.get(other)!.includes(key))
+      : identity(other) === identity(line))
   // Both carriageways of one driven highway can keep separate representatives well beyond the
   // 25 m merge distance, so pair each line with its mutual nearest neighbour. A parallel road of
   // the same number can never pull in an unrelated carriageway through such a chain.
@@ -441,7 +479,8 @@ export function createOverviewHoverIndex(lines: readonly OverviewLine[]) {
     if (best && bestDistance > EPS) nearestSameRoad.set(line, best)
   }
   return (line: OverviewLine, position: [number, number]) => {
-    if (!eligible(line)) return line.count
+    const own = { count: line.count, sourceIds: line.sourceIds ?? [] }
+    if (!eligible(line)) return own
     const point = project(...position)
     let source: LineEdge | undefined, sourcePoint: XY | undefined, sourceDistance = Infinity
     for (const edge of edges.get(line) ?? []) {
@@ -449,9 +488,9 @@ export function createOverviewHoverIndex(lines: readonly OverviewLine[]) {
       const d = distance(point, p)
       if (d < sourceDistance) { sourceDistance = d; source = edge; sourcePoint = p }
     }
-    if (!source || !sourcePoint) return line.count
+    if (!source || !sourcePoint) return own
     const scale = scaleAt(source)
-    const sameRoad = (other: OverviewLine) => other.roadClass === line.roadClass && identity(other) === identity(line)
+    const sameRoad = sameRoadAs(line)
     const geometryDot = (a: LineEdge, b: LineEdge) => ((a.b.x - a.a.x) * (b.b.x - b.a.x)
       + (a.b.y - a.a.y) * (b.b.y - b.a.y)) / (a.length * b.length)
     const flows = (line: OverviewLine) => line.flowCounts ?? {
@@ -531,7 +570,7 @@ export function createOverviewHoverIndex(lines: readonly OverviewLine[]) {
       && line.sourceIds.some(id => edge.line.sourceIds.includes(id))
     for (const candidate of nearby) {
       const other = candidate.line
-      if (other === line || other.roadClass !== line.roadClass || identity(other) !== identity(line)) continue
+      if (other === line || !sameRoad(other)) continue
       if (!oppositeFlows(source, candidate)) continue
       // Require coverage at the cursor, not merely somewhere along the source line.
       const t = fraction(sourcePoint, candidate)
@@ -605,7 +644,7 @@ export function createOverviewHoverIndex(lines: readonly OverviewLine[]) {
       let besideEdge: LineEdge | undefined, besideDistance = Infinity
       for (const candidate of nearby) {
         const other = candidate.line
-        if (other === line || other.roadClass !== line.roadClass || identity(other) !== identity(line)) continue
+        if (other === line || !sameRoad(other)) continue
         if (!oppositeFlows(source, candidate)) continue
         const t = fraction(sourcePoint, candidate)
         if (t < -scale / candidate.length || t > 1 + scale / candidate.length) continue
@@ -623,7 +662,7 @@ export function createOverviewHoverIndex(lines: readonly OverviewLine[]) {
         }
       }
     }
-    if (!opposite || !oppositePoint) return line.count
+    if (!opposite || !oppositePoint) return own
     if (!pairedByCorridor) {
       // Use a deterministic cross-section of the shared edges. Re-projecting the
       // cursor from each side shifts the 40 m support window at bends and thresholds.
@@ -632,11 +671,75 @@ export function createOverviewHoverIndex(lines: readonly OverviewLine[]) {
       const from = Math.max(0, Math.min(fa, fb)), to = Math.min(1, Math.max(fa, fb))
       const anchor = lerp(axis.a, axis.b, (from + to) / 2)
       const peerAnchor = lerp(peer.a, peer.b, Math.max(0, Math.min(1, fraction(anchor, peer))))
-      if (!hasCorridorSupport(axis, anchor) && !hasCorridorSupport(peer, peerAnchor)) return line.count
+      if (!hasCorridorSupport(axis, anchor) && !hasCorridorSupport(peer, peerAnchor)) return own
     }
-    return Math.max(line.count, opposite.line.count,
-      passageTotal([line, opposite.line], Math.sign(geometryDot(source, opposite))))
+    return { count: Math.max(line.count, opposite.line.count,
+      passageTotal([line, opposite.line], Math.sign(geometryDot(source, opposite)))),
+      sourceIds: [...new Set([...(line.sourceIds ?? []), ...(opposite.line.sourceIds ?? [])])].sort() }
   }
+}
+
+export interface RoadFootprintLine {
+  positions: Array<[number, number]>
+  count: number
+  sourceIds: string[]
+}
+
+/** Split at nearby carriageway endpoints before assigning the shared hover count.
+ * Display-only geometry; this is deliberately not a road-length calculation.
+ * Run in the footprint worker so corridor matching cannot block map interaction.
+ */
+export function buildRoadFootprintLines(lines: readonly OverviewLine[], selection: readonly OverviewLine[] = lines): RoadFootprintLine[] {
+  const lookup = createOverviewPassageIndex(lines)
+  const index = new EdgeIndex<LineEdge>()
+  const allEdges: LineEdge[] = []
+  for (const line of lines) for (const edge of edges(line.positions)) {
+    const item = { ...edge, line }
+    index.add(item)
+  }
+  for (const line of selection) for (const edge of edges(line.positions)) allEdges.push({ ...edge, line })
+  const result: RoadFootprintLine[] = []
+  for (const edge of allEdges) {
+    const cuts = [0, 1]
+    const scale = scaleAt(edge)
+    const matches: Array<{ from: number; to: number; separation: number; peer: LineEdge }> = []
+    for (const peer of index.near(edge, CORRIDOR_SEPARATION * scale)) {
+      // A full-route representative can resolve conflicting road labels differently
+      // from the selected analysis fragments. Exact geometry plus a shared recording
+      // identifies it; wider carriageway matches still require the same highway.
+      if (selection !== lines && edge.line.sourceIds.some(id => peer.line.sourceIds.includes(id))) {
+        const tolerance = sameHighway(
+          { roadClass: edge.line.roadClass, routeRef: edge.line.routeRef ?? '', ramp: !edge.line.mainline, manual: false },
+          { roadClass: peer.line.roadClass, routeRef: peer.line.routeRef ?? '', ramp: !peer.line.mainline, manual: false },
+        ) ? 25 : 2
+        const match = overlap(edge, peer, tolerance * scale)
+        if (match) { matches.push({ ...match, peer }); cuts.push(match.from, match.to) }
+      }
+      if (peer.line === edge.line) continue
+      const match = overlap(peer, edge, CORRIDOR_SEPARATION * scale)
+      if (!match) continue
+      for (const point of [peer.a, peer.b]) {
+        const t = fraction(point, edge)
+        if (t > 0 && t < 1) cuts.push(t)
+      }
+    }
+    const sorted = [...new Set(cuts)].sort((a, b) => a - b)
+    for (let i = 1; i < sorted.length; i++) {
+      const a = lerp(edge.a, edge.b, sorted[i - 1]), b = lerp(edge.a, edge.b, sorted[i])
+      if (distance(a, b) < EPS) continue
+      const mid = (sorted[i - 1] + sorted[i]) / 2
+      const owner = matches.filter(match => match.from <= mid && match.to >= mid)
+        .sort((a, b) => a.separation - b.separation)[0]?.peer.line ?? edge.line
+      const details = lookup(owner, unproject(lerp(a, b, 0.5)))
+      const positions: Array<[number, number]> = [unproject(a), unproject(b)]
+      const previous = result[result.length - 1]
+      const end = previous?.positions[previous.positions.length - 1]
+      if (previous && previous.count === details.count && previous.sourceIds.join('|') === details.sourceIds.join('|')
+        && end && distance(project(...end), a) < EPS) previous.positions.push(positions[1])
+      else result.push({ positions, ...details })
+    }
+  }
+  return result
 }
 
 const endpointKey = (p: [number, number]) => `${p[0].toFixed(8)},${p[1].toFixed(8)}`
@@ -786,6 +889,7 @@ function joinLines(lines: OverviewLine[]): OverviewLine[] {
         }
         const candidateDirections = candidate.directions
         if (Boolean(directions) !== Boolean(candidateDirections) || candidate.routeRef !== line.routeRef
+          || candidate.roadIdentities?.join('|') !== line.roadIdentities?.join('|')
           || candidate.directionReferenceKey !== line.directionReferenceKey) break
         if (directions && candidateDirections) {
           const a = aligned ? candidateDirections.forward : candidateDirections.reverse

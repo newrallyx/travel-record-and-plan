@@ -63,7 +63,7 @@ export function useTripBackup({
       )
     } catch (error) {
       console.error('[backup] Failed to export trip backup.', error)
-      setBackupMessage('导出失败，请打开浏览器控制台查看错误。')
+      setBackupMessage(`导出失败：${error instanceof Error ? error.message : '无法读取或保存完整备份，请检查存储空间和权限。'}`)
     } finally {
       setIsExportingBackup(false)
     }
@@ -77,13 +77,22 @@ export function useTripBackup({
 
     try {
       const imported = parseTripBackupJson(await file.text())
-      const importedCacheCount = await replaceAllSegmentRouteCache(imported.segmentRoutes)
       let nextTripReview = imported.tripReview
       const photoLibraryApi = window.roadtripDesktop?.photoLibrary
       if (photoLibraryApi) {
-        const cleanup = await photoLibraryApi.cleanupOrphans(collectReferencedPhotoIds(nextTripReview))
-        nextTripReview = removePhotoReferences(nextTripReview, cleanup.missingReferencedPhotoIds)
+        const availableIds = new Set((await photoLibraryApi.listPhotos()).map((photo) => photo.id))
+        nextTripReview = removePhotoReferences(nextTripReview,
+          collectReferencedPhotoIds(nextTripReview).filter((id) => !availableIds.has(id)))
       }
+      const currentRoutes = await getAllSegmentRouteCacheStrict()
+      const importedCacheCount = await commitDesktopRestoreTransaction({
+        currentTripReview: tripReview, nextTripReview,
+        currentRoutes, nextRoutes: imported.segmentRoutes,
+        persistTripReview: saveTripReviewStrict, replaceRoutes: replaceAllSegmentRouteCache,
+        commitPhotos: async () => {
+          await window.roadtripDesktop?.backup?.commitPhotoCleanup(collectReferencedPhotoIds(nextTripReview))
+        },
+      })
       setTripReview(nextTripReview)
       setFilters({ tripId: '', dayId: '', segmentId: '' })
       resetEditingState()
@@ -98,7 +107,7 @@ export function useTripBackup({
     } finally {
       setIsImportingBackup(false)
     }
-  }, [resetEditingState, setFilters, setTripReview])
+  }, [resetEditingState, setFilters, setTripReview, tripReview])
 
   const importDesktopBackup = useCallback(async () => {
     if (isReadonlyDemoMode || isImportingBackup) return
@@ -139,8 +148,9 @@ export function useTripBackup({
           return
         }
       } else if (photoLibraryApi) {
-        const cleanup = await photoLibraryApi.cleanupOrphans(collectReferencedPhotoIds(nextTripReview))
-        nextTripReview = removePhotoReferences(nextTripReview, cleanup.missingReferencedPhotoIds)
+        const availableIds = new Set((await photoLibraryApi.listPhotos()).map((photo) => photo.id))
+        nextTripReview = removePhotoReferences(nextTripReview,
+          collectReferencedPhotoIds(nextTripReview).filter((id) => !availableIds.has(id)))
       }
 
       previousRoutes = await getAllSegmentRouteCacheStrict()
@@ -153,6 +163,7 @@ export function useTripBackup({
         replaceRoutes: replaceAllSegmentRouteCache,
         commitPhotos: async () => {
           if (preparedImportToken) await desktopBackupApi.commitImport(preparedImportToken)
+          else if (photoLibraryApi) await desktopBackupApi.commitPhotoCleanup(collectReferencedPhotoIds(nextTripReview))
         },
       })
       preparedImportToken = ''

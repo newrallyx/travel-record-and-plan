@@ -23,6 +23,10 @@
   letter-spacing: 0.03em;
 }
 
+.map-difficulty-score-legend {
+  min-width: 230px;
+}
+
 .map-score-legend-bar {
   height: 10px;
   border-radius: 999px;
@@ -35,6 +39,22 @@
   color: var(--ink-3);
   font-variant-numeric: tabular-nums;
 }
+
+.map-score-legend-ticks {
+  position: relative;
+  height: 16px;
+  color: var(--ink-3);
+  font-size: var(--font-caption);
+  font-variant-numeric: tabular-nums;
+}
+
+.map-score-legend-ticks > span {
+  position: absolute;
+  transform: translateX(-50%);
+}
+
+.map-score-legend-ticks > span:first-child { transform: none; }
+.map-score-legend-ticks > span:last-child { transform: translateX(-100%); }
 
 .map-score-legend-note {
   display: flex;

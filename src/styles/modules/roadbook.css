@@ -120,7 +120,7 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
-  margin-bottom: 18px;
+  margin-bottom: 12px;
 }
 
 .roadbook-view-header h2 {
@@ -191,8 +191,8 @@
   display: flex;
   flex-direction: column;
   flex: 1;
-  gap: 10px;
-  padding: 18px;
+  gap: 8px;
+  padding: 14px;
 }
 
 .roadbook-card-title {
@@ -202,7 +202,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   display: -webkit-box;
-  min-height: 2.8em;
+  min-height: 1.4em;
   white-space: normal;
   line-height: 1.4;
   -webkit-box-orient: vertical;
@@ -435,3 +435,9 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+.roadbook-export-panel { margin: 16px 0 24px; padding: 20px; background: var(--surface); border: 1px solid var(--line-2); border-radius: 14px; }
+.roadbook-export-panel fieldset { border: 1px solid var(--line-2); border-radius: 10px; margin: 16px 0; min-width: 0; }
+.roadbook-export-panel h3 { margin: 0; }
+.roadbook-export-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 12px 0; }
+.roadbook-export-actions label { display: inline-flex; align-items: center; gap: 6px; }
+.roadbook-export-photos { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; max-height: 320px; overflow-y: auto; padding: 8px; }

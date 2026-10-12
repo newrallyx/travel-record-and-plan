@@ -14,10 +14,10 @@ export function parseLocationText(location: string): { lat: number; lng: number 
 }
 
 export function preferenceToStrategy(preference: RoutePreference): string {
-  if (preference === 'HIGHWAY_FIRST') return '19'
+  if (preference === 'HIGHWAY_FIRST') return '34'
   if (preference === 'SPEED_FIRST') return '0'
   if (preference === 'AVOID_TOLL') return '1'
-  return '19'
+  return '34'
 }
 
 export function buildRouteKey(points: DrivingRequestPoint[], preference: RoutePreference): string {
@@ -25,5 +25,5 @@ export function buildRouteKey(points: DrivingRequestPoint[], preference: RoutePr
   const destination = toLonLatText(points[points.length - 1])
   const via = points.length > 2 ? points.slice(1, -1).map(toLonLatText).join(';') : ''
   const strategy = preferenceToStrategy(preference)
-  return `${origin}|${destination}|${via}|${strategy}`
+  return `amap-v5|${origin}|${destination}|${via}|${strategy}`
 }

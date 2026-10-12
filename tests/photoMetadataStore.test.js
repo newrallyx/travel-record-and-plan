@@ -23,6 +23,22 @@ function createRoot(rootPath) {
   }
 }
 
+test('single-photo and segment queries do not clone unrelated metadata and return isolated values', async (t) => {
+  const { store } = await createStoreFixture(t)
+  let unrelatedCopies = 0
+  store.cachedState = { roots: [], photos: [
+    { id: 'keep', segmentId: 'segment', fingerprint: { size: 1 } },
+    { id: 'other', segmentId: 'other', get note() { unrelatedCopies++; return 'large unrelated metadata' } },
+  ] }
+  const photo = await store.getPhoto('keep')
+  photo.fingerprint.size = 999
+  assert.equal((await store.getPhoto('keep')).fingerprint.size, 1)
+  const photos = await store.listPhotosBySegment('segment')
+  photos[0].id = 'changed'
+  assert.equal((await store.getPhoto('keep')).id, 'keep')
+  assert.equal(unrelatedCopies, 0)
+})
+
 test('photo library roots persist their owning trip and still read legacy roots', async (t) => {
   const { filePath, store } = await createStoreFixture(t)
   const root = createRoot(path.join(path.dirname(filePath), 'photos'))

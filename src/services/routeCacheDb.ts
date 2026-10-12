@@ -1,4 +1,7 @@
 import { normalizeManualDirection } from '../utils/manualRoadDirection.ts'
+import { normalizeConcurrentRoads } from '../utils/roadMemberships.ts'
+import { preserveConcurrentRoadIntervals } from '../utils/concurrentRoadIntervals.ts'
+import type { ConcurrentRoad } from '../types/roadStatistics.ts'
 import {
   ROAD_ANALYSIS_SCHEMA_VERSION,
   type ManualRoadIntervalAnnotation,
@@ -11,7 +14,8 @@ import {
   type RoadProvinceStatus,
   type RouteRoadPart,
 } from '../types/roadStatistics.ts'
-import type { CoordPoint } from '../types/trip'
+import type { CoordPoint, WaypointRouteEstimate } from '../types/trip'
+import { normalizeWaypointEstimates } from '../utils/waypointEstimates.ts'
 import { ROAD_CLASSIFIER_VERSION } from '../config/roadStatistics.ts'
 import {
   extractRouteRef,
@@ -26,6 +30,7 @@ import {
   buildManualRoadAnnotationParts,
   findOverlappingManualRoadAnnotations,
   getManualRoadAnnotationDistanceMeters,
+  restoreManualRoadAnnotationNames,
 } from '../utils/manualRoadAnnotations.ts'
 import { buildSegmentRouteKey } from '../utils/routeBuildKey.ts'
 import { getTrackDistanceMeters } from '../utils/distance.ts'
@@ -49,6 +54,7 @@ function notifyRouteCacheChanged() {
 }
 
 export interface RouteCacheRecord {
+  waypointEstimates?: WaypointRouteEstimate[]
   segmentId: string
   routeBuildKey: string
   points: CoordPoint[]
@@ -73,6 +79,7 @@ interface SaveSegmentRouteGeometryParams {
 }
 
 interface SavePlannedSegmentRouteCacheParams extends SaveSegmentRouteGeometryParams {
+  waypointEstimates?: WaypointRouteEstimate[]
   distanceMeters?: number | null
   estimatedDurationSeconds?: number | null
   durationUpdatedAt?: string
@@ -84,6 +91,7 @@ interface SavePlannedSegmentRouteCacheParams extends SaveSegmentRouteGeometryPar
 }
 
 interface ManualRoadPartCorrection {
+  concurrentRoads?: ConcurrentRoad[]
   manualDirection?: string
   roadClass: RoadClass
   routeRef?: string
@@ -92,6 +100,8 @@ interface ManualRoadPartCorrection {
 }
 
 export interface ManualRoadIntervalAnnotationInput {
+  roadName?: string
+  concurrentRoads?: ConcurrentRoad[]
   manualDirection?: string
   segment: RouteSegment
   startPointIndex: number
@@ -253,6 +263,7 @@ function normalizeRoadPart(value: unknown): RouteRoadPart | undefined {
   if (distanceMeters === undefined) return undefined
 
   const roadName = normalizeRoadText(value.roadName) || undefined
+  const originalRoadName = normalizeRoadText(value.originalRoadName) || undefined
   const routeRef = extractRouteRef(value.routeRef)
   const tollRoad = normalizeRoadText(value.tollRoad) || undefined
   const instruction = normalizeOptionalString(value.instruction)
@@ -263,6 +274,7 @@ function normalizeRoadPart(value: unknown): RouteRoadPart | undefined {
     : undefined
   const provinceFields = normalizeProvinceFields(value, value.roadClass as RoadClass, routeRef)
   const manualDirection = normalizeManualDirection(value.manualDirection, value.roadClass as RoadClass, routeRef, provinceFields.provinceCode)
+  const concurrentRoads = normalizeConcurrentRoads(value.concurrentRoads, { roadClass: value.roadClass as RoadClass, routeRef, provinceCode: provinceFields.provinceCode })
 
   return {
     roadClass: value.roadClass as RoadClass,
@@ -271,8 +283,11 @@ function normalizeRoadPart(value: unknown): RouteRoadPart | undefined {
     confidence: value.confidence as RoadClassificationConfidence,
     source: value.source as RoadClassificationSource,
     ...(roadName ? { roadName } : {}),
+    ...(originalRoadName ? { originalRoadName } : {}),
     ...(routeRef ? { routeRef } : {}),
     ...(manualDirection ? { manualDirection } : {}),
+    ...(concurrentRoads.length ? { concurrentRoads } : {}),
+    ...(normalizeOptionalString(value.manualAnnotationId) ? { manualAnnotationId: normalizeOptionalString(value.manualAnnotationId) } : {}),
     ...(tollRoad ? { tollRoad } : {}),
     ...(instruction ? { instruction } : {}),
     ...(polyline ? { polyline } : {}),
@@ -296,6 +311,7 @@ function normalizeManualRoadAnnotation(value: unknown): ManualRoadIntervalAnnota
   const createdAt = normalizeOptionalTimestamp(value.createdAt)
   const updatedAt = normalizeOptionalTimestamp(value.updatedAt)
   const routeRef = extractRouteRef(value.routeRef)
+  const roadName = normalizeRoadText(value.roadName) || undefined
   const distanceSource = value.distanceSource === 'RECORDED_ALLOCATION' || value.distanceSource === 'GEOMETRY_ESTIMATE'
     ? value.distanceSource
     : undefined
@@ -311,8 +327,11 @@ function normalizeManualRoadAnnotation(value: unknown): ManualRoadIntervalAnnota
   ) return undefined
   const provinceFields = normalizeProvinceFields(value, value.roadClass as RoadClass, routeRef)
   const manualDirection = normalizeManualDirection(value.manualDirection, value.roadClass as RoadClass, routeRef, provinceFields.provinceCode)
+  const concurrentRoads = normalizeConcurrentRoads(value.concurrentRoads, { roadClass: value.roadClass as RoadClass, routeRef, provinceCode: provinceFields.provinceCode })
   return {
     id: normalizeOptionalString(value.id) ?? `annotation-${startPointIndex}-${endPointIndex}`,
+    ...(roadName ? { roadName } : {}),
+    ...(concurrentRoads.length ? { concurrentRoads } : {}),
     startPointIndex,
     endPointIndex,
     roadClass: value.roadClass as RoadClass,
@@ -395,6 +414,21 @@ export function normalizeRouteCacheRecord(value: unknown, fallbackUpdatedAt = 0)
   const roadAnnotationBaseAnalysis = value.roadAnnotationBaseAnalysis === undefined
     ? undefined
     : normalizeRoadAnalysis(value.roadAnnotationBaseAnalysis)
+  const annotationIds = new Set(manualRoadAnnotations?.map(annotation => annotation.id))
+  const annotationNames = new Map(manualRoadAnnotations?.map(annotation => [annotation.id, annotation.roadName]))
+  roadParts = roadParts?.map(part => {
+    const roadName = part.manualAnnotationId ? annotationNames.get(part.manualAnnotationId) : undefined
+    if (roadName) {
+      const originalRoadName = part.originalRoadName || (part.roadName !== roadName ? part.roadName : undefined) || part.tollRoad
+      return { ...part, roadName, ...(originalRoadName ? { originalRoadName } : {}) }
+    }
+    if (!part.manualAnnotationId || annotationIds.has(part.manualAnnotationId)) return part
+    const { manualAnnotationId: _annotationId, ...standalonePart } = part
+    return standalonePart
+  })
+  if (roadParts && roadAnnotationBaseParts?.length && manualRoadAnnotations?.length) {
+    roadParts = restoreManualRoadAnnotationNames(roadParts, roadAnnotationBaseParts)
+  }
   if (
     roadParts
     && roadAnalysis
@@ -406,6 +440,7 @@ export function normalizeRouteCacheRecord(value: unknown, fallbackUpdatedAt = 0)
   const updatedAt = normalizeNonNegativeNumber(value.updatedAt) ?? fallbackUpdatedAt
   const distanceMeters = normalizeNonNegativeNumber(value.distanceMeters)
   const estimatedDurationSeconds = normalizeNonNegativeNumber(value.estimatedDurationSeconds)
+  const waypointEstimates = normalizeWaypointEstimates(value.waypointEstimates)
   const durationUpdatedAt = estimatedDurationSeconds === undefined
     ? undefined
     : normalizeOptionalTimestamp(value.durationUpdatedAt)
@@ -422,6 +457,7 @@ export function normalizeRouteCacheRecord(value: unknown, fallbackUpdatedAt = 0)
     updatedAt,
     ...(distanceMeters !== undefined ? { distanceMeters } : {}),
     ...(estimatedDurationSeconds !== undefined ? { estimatedDurationSeconds } : {}),
+    ...(waypointEstimates ? { waypointEstimates } : {}),
     ...(durationUpdatedAt ? { durationUpdatedAt } : {}),
     ...(estimatedTollYuan !== undefined ? { estimatedTollYuan } : {}),
     ...(tollDistanceMeters !== undefined ? { tollDistanceMeters } : {}),
@@ -484,10 +520,11 @@ export async function savePlannedSegmentRouteCache(
         : {}),
       updatedAt: Date.now(),
     })
-    if (!payload) return
+    if (!payload) throw new Error('路线缓存数据无效，未保存。')
     await putCompleteRecord(payload)
   } catch (error) {
     console.error('[routeCacheDb] Failed to save planned segment route cache.', error)
+    throw error
   }
 }
 
@@ -497,7 +534,7 @@ export async function saveManualSegmentRouteCache(
 ): Promise<void> {
   try {
     const geometry = normalizeRouteCacheRecord({ ...params, updatedAt: Date.now() })
-    if (!geometry) return
+    if (!geometry) throw new Error('手工轨迹数据无效，未保存。')
 
     const db = await openRouteCacheDb()
     try {
@@ -534,6 +571,7 @@ export async function saveManualSegmentRouteCache(
     }
   } catch (error) {
     console.error('[routeCacheDb] Failed to save manual segment route cache.', error)
+    throw error
   }
 }
 
@@ -554,7 +592,14 @@ async function updateExistingRouteCache(
           reject(new Error('未找到可修改的路线缓存。'))
           return
         }
-        const next = normalizeRouteCacheRecord(update(existing))
+        let next: RouteCacheRecord | null
+        try {
+          next = normalizeRouteCacheRecord(update(existing))
+        } catch (error) {
+          tx.abort()
+          reject(error)
+          return
+        }
         if (!next) {
           tx.abort()
           reject(new Error('道路分析数据校验失败。'))
@@ -582,12 +627,13 @@ function preserveManualRoadCorrections(
   existingParts: readonly RouteRoadPart[] | undefined,
 ): RouteRoadPart[] | undefined {
   if (!automaticParts) return undefined
-  const manualParts = (existingParts ?? []).filter((part) => part.source === 'MANUAL')
-  if (!manualParts.length) return [...automaticParts]
+  const concurrentParts = (existingParts ?? []).filter(part => part.source === 'MANUAL' && part.concurrentRoads?.length)
+  const manualParts = (existingParts ?? []).filter((part) => part.source === 'MANUAL' && !part.concurrentRoads?.length)
+  if (!manualParts.length) return concurrentParts.length ? preserveConcurrentRoadIntervals(automaticParts, concurrentParts) : [...automaticParts]
   const next = automaticParts.map((part) => ({ ...part }))
   const used = new Set<number>()
-  manualParts.forEach((manualPart, manualIndex) => {
-    let targetIndex = automaticParts.length === existingParts?.length ? manualIndex : -1
+  manualParts.forEach((manualPart) => {
+    let targetIndex = automaticParts.length === existingParts?.length ? existingParts!.indexOf(manualPart) : -1
     if (targetIndex < 0 || used.has(targetIndex) || targetIndex >= next.length) {
       const anchor = partAnchor(manualPart)
       targetIndex = next.reduce((bestIndex, candidate, index) => {
@@ -610,6 +656,9 @@ function preserveManualRoadCorrections(
       ...automaticPart,
       roadClass: manualPart.roadClass,
       routeRef: manualPart.routeRef,
+      manualDirection: manualPart.manualDirection,
+      manualAnnotationId: manualPart.manualAnnotationId,
+      ...(manualPart.manualAnnotationId ? { roadName: manualPart.roadName, originalRoadName: manualPart.originalRoadName } : {}),
       confidence: 'HIGH',
       source: 'MANUAL',
       ...(manualPart.provinceCode ? { provinceCode: manualPart.provinceCode } : {}),
@@ -619,7 +668,7 @@ function preserveManualRoadCorrections(
       ...(manualPart.provinceCandidates ? { provinceCandidates: [...manualPart.provinceCandidates] } : {}),
     }
   })
-  return next
+  return concurrentParts.length ? preserveConcurrentRoadIntervals(next, concurrentParts) : next
 }
 
 /** 历史回填的相似路线只补道路字段，缓存中的原始 points 与既有估算保持不变。 */
@@ -673,6 +722,7 @@ export async function saveHistoricalRouteReplacement(patch: ResolvedRoutePatch):
     distanceMeters: patch.distanceMeters,
     estimatedDurationSeconds: patch.estimatedDurationSeconds,
     durationUpdatedAt: patch.durationUpdatedAt,
+    waypointEstimates: patch.waypointEstimates,
     estimatedTollYuan: patch.estimatedTollYuan,
     tollDistanceMeters: patch.tollDistanceMeters,
     tollUpdatedAt: patch.tollUpdatedAt,
@@ -693,8 +743,13 @@ export async function saveManualRoadPartCorrection(
   const normalizedRef = correction.routeRef?.trim() ? extractRouteRef(correction.routeRef) : undefined
   if (correction.routeRef?.trim() && !normalizedRef) throw new Error('道路编号格式无效，例如应填写 G65、G210 或 S101。')
   const provinceCode = normalizeProvinceCode(correction.provinceCode) ?? normalizeProvinceCode(correction.provinceName)
+  const primary = { roadClass: correction.roadClass, routeRef: normalizedRef, provinceCode }
+  const concurrentRoads = correction.concurrentRoads === undefined ? undefined : normalizeConcurrentRoads(correction.concurrentRoads, primary, true)
   await updateExistingRouteCache(segmentId, (record) => {
     if (!record.roadParts?.[partIndex] || !record.roadAnalysis) throw new Error('要修正的道路片段不存在。')
+    if (record.manualRoadAnnotations?.some(annotation => annotation.id === record.roadParts![partIndex].manualAnnotationId)) {
+      throw new Error('这个片段来自区间标注，请在上方区间标注列表中修改或撤销。')
+    }
     const roadParts = record.roadParts.map((part, index) => {
       if (index !== partIndex) return part
       const next = {
@@ -702,6 +757,7 @@ export async function saveManualRoadPartCorrection(
         roadClass: correction.roadClass,
         routeRef: normalizedRef,
         manualDirection: normalizeManualDirection(correction.manualDirection, correction.roadClass, normalizedRef, provinceCode),
+        concurrentRoads: concurrentRoads ?? normalizeConcurrentRoads(part.concurrentRoads, primary),
         confidence: 'HIGH' as const,
         source: 'MANUAL' as const,
       }
@@ -765,14 +821,18 @@ export async function saveManualRoadIntervalAnnotation(
   if (points.length < 2 || input.endPointIndex >= points.length) throw new Error('所选轨迹区间不存在。')
 
   const routeRef = input.routeRef?.trim() ? extractRouteRef(input.routeRef) : undefined
+  const roadName = normalizeRoadText(input.roadName) || undefined
   if (input.routeRef?.trim() && !routeRef) throw new Error('道路编号格式无效，例如应填写 G65、G210 或 S101。')
   const provinceCode = normalizeProvinceCode(input.provinceCode) ?? normalizeProvinceCode(input.provinceName)
   const manualDirection = normalizeManualDirection(input.manualDirection, input.roadClass, routeRef, provinceCode)
+  const concurrentRoads = normalizeConcurrentRoads(input.concurrentRoads, { roadClass: input.roadClass, routeRef, provinceCode }, true)
   if (input.manualDirection && !manualDirection) throw new Error('所选方向与道路编号或类型不匹配。')
   const now = new Date().toISOString()
   const { distanceMeters: totalDistanceMeters, recorded } = getAnnotationDistanceBase(input.segment, cache, points)
   const annotations = [...(cache?.manualRoadAnnotations ?? [])].filter((annotation) => annotation.id !== input.annotationId)
   const annotation: ManualRoadIntervalAnnotation = {
+    ...(roadName ? { roadName } : {}),
+    ...(concurrentRoads.length ? { concurrentRoads } : {}),
     ...(manualDirection ? { manualDirection } : {}),
     id: input.annotationId ?? `manual-road-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     startPointIndex: input.startPointIndex,
@@ -885,6 +945,9 @@ export async function revokeManualRoadIntervalAnnotation(segmentId: string, anno
 export async function restoreAutomaticRoadPartCorrection(segmentId: string, partIndex: number): Promise<void> {
   await updateExistingRouteCache(segmentId, (record) => {
     if (!record.roadParts?.[partIndex] || !record.roadAnalysis) throw new Error('要恢复的道路片段不存在。')
+    if (record.manualRoadAnnotations?.some(annotation => annotation.id === record.roadParts![partIndex].manualAnnotationId)) {
+      throw new Error('这个片段来自区间标注，请在上方区间标注列表中撤销。')
+    }
     return {
       ...record,
       updatedAt: Date.now(),

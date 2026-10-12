@@ -35,6 +35,7 @@ import { getSegmentDrivingDurationSeconds } from './durations.ts'
 import { getRoadAnalysisFreshness, isRoadAnalysisApplicableRouteType } from './routeBuildKey.ts'
 import { summarizeNumericBandDistribution } from './roadStatistics.ts'
 import { extractRouteRef } from './roadClassifier.ts'
+import { roadMembershipParts, roadProvinceKey } from './roadMemberships.ts'
 import { isProvinceSensitiveRoadPart, provinceNameFromCode } from './province.ts'
 
 const ROAD_CLASSES = Object.keys(ROAD_CLASS_LABELS) as RoadClass[]
@@ -65,6 +66,7 @@ interface DistanceAccumulator {
   provinceCode?: string
   provinceName?: string
   provinceStatus?: RoadProvinceStatus
+  provinceCandidates?: string[]
   routeRefs: Set<string>
 }
 
@@ -335,6 +337,7 @@ function toUnnumberedEntry(
     ...(accumulator.provinceCode ? { provinceCode: accumulator.provinceCode } : {}),
     ...(accumulator.provinceName ? { provinceName: accumulator.provinceName } : {}),
     ...(accumulator.provinceStatus ? { provinceStatus: accumulator.provinceStatus } : {}),
+    ...(accumulator.provinceCandidates ? { provinceCandidates: accumulator.provinceCandidates } : {}),
     ...(accumulator.routeRefs.size ? { routeRefs: [...accumulator.routeRefs].sort() } : {}),
     roadNames: Array.from(accumulator.roadNames).sort((a, b) => a.localeCompare(b, 'zh-CN')),
     distanceMeters: accumulator.distanceMeters,
@@ -356,12 +359,8 @@ function addProvinceIdentity(accumulator: DistanceAccumulator, part: RouteRoadPa
     return
   }
   accumulator.provinceStatus = 'pending'
-}
-
-function provinceAggregationKey(part: RouteRoadPart): string {
-  if (part.provinceCode) return `KNOWN:${part.provinceCode}`
   const candidates = [...new Set(part.provinceCandidates ?? [])].sort()
-  return candidates.length ? `PENDING:${candidates.join(',')}` : 'PENDING'
+  if (candidates.length) accumulator.provinceCandidates = candidates
 }
 
 function summarizeRoadDistances(
@@ -392,43 +391,45 @@ function summarizeRoadDistances(
       if (part.roadClass !== 'EXPRESSWAY' && part.roadClass !== 'NATIONAL_ROAD' && part.roadClass !== 'PROVINCIAL_ROAD') continue
       numberedShareDenominatorMeters += distanceMeters
 
-      const routeRef = extractRouteRef(part.routeRef)
-      if (!routeRef) {
-        if (part.roadClass === 'PROVINCIAL_ROAD') {
-          const key = provinceAggregationKey(part)
-          const accumulator = unnumberedProvincialRoads.get(key) ?? createDistanceAccumulator()
-          addRoadPartToAccumulator(accumulator, reference, distanceMeters, part.roadName)
-          addProvinceIdentity(accumulator, part)
-          unnumberedProvincialRoads.set(key, accumulator)
-        } else {
-          addRoadPartToAccumulator(
-            part.roadClass === 'EXPRESSWAY' ? unnumberedExpressway : unnumberedNationalRoad,
-            reference,
-            distanceMeters,
-            part.roadName,
-          )
+      for (const namedPart of roadMembershipParts(part)) {
+        const routeRef = extractRouteRef(namedPart.routeRef)
+        if (!routeRef) {
+          if (part.roadClass === 'PROVINCIAL_ROAD') {
+            const key = roadProvinceKey(part)
+            const accumulator = unnumberedProvincialRoads.get(key) ?? createDistanceAccumulator()
+            addRoadPartToAccumulator(accumulator, reference, distanceMeters, part.roadName)
+            addProvinceIdentity(accumulator, part)
+            unnumberedProvincialRoads.set(key, accumulator)
+          } else {
+            addRoadPartToAccumulator(
+              part.roadClass === 'EXPRESSWAY' ? unnumberedExpressway : unnumberedNationalRoad,
+              reference,
+              distanceMeters,
+              part.roadName,
+            )
+          }
+          continue
         }
-        continue
-      }
 
-      const provinceSensitive = isProvinceSensitiveRoadPart({ ...part, routeRef })
-      const key = provinceSensitive
-        ? `${part.roadClass}:${provinceAggregationKey(part)}:${routeRef}`
-        : `${part.roadClass}:${routeRef}`
-      let accumulator = numberedAccumulators.get(key)
-      if (!accumulator) {
-        accumulator = {
-          ...createDistanceAccumulator(),
-          routeRef,
-          roadClass: part.roadClass,
-          roadNames: new Set<string>(),
+        const provinceSensitive = isProvinceSensitiveRoadPart({ ...namedPart, routeRef })
+        const key = provinceSensitive
+          ? `${namedPart.roadClass}:${roadProvinceKey(namedPart)}:${routeRef}`
+          : `${namedPart.roadClass}:${routeRef}`
+        let accumulator = numberedAccumulators.get(key)
+        if (!accumulator) {
+          accumulator = {
+            ...createDistanceAccumulator(),
+            routeRef,
+            roadClass: namedPart.roadClass as NumberedDistanceAccumulator['roadClass'],
+            roadNames: new Set<string>(),
+          }
+          numberedAccumulators.set(key, accumulator)
         }
-        numberedAccumulators.set(key, accumulator)
+        addRoadPartToAccumulator(accumulator, reference, distanceMeters)
+        accumulator.routeRefs.add(routeRef)
+        addProvinceIdentity(accumulator, namedPart)
+        if (namedPart.roadName?.trim()) accumulator.roadNames.add(namedPart.roadName.trim())
       }
-      addRoadPartToAccumulator(accumulator, reference, distanceMeters)
-      accumulator.routeRefs.add(routeRef)
-      addProvinceIdentity(accumulator, part)
-      if (part.roadName?.trim()) accumulator.roadNames.add(part.roadName.trim())
     }
   }
 
@@ -460,6 +461,7 @@ function summarizeRoadDistances(
       ...(accumulator.provinceCode ? { provinceCode: accumulator.provinceCode } : {}),
       ...(accumulator.provinceName ? { provinceName: accumulator.provinceName } : {}),
       ...(accumulator.provinceStatus ? { provinceStatus: accumulator.provinceStatus } : {}),
+      ...(accumulator.provinceCandidates ? { provinceCandidates: accumulator.provinceCandidates } : {}),
       roadNames: Array.from(accumulator.roadNames).sort((a, b) => a.localeCompare(b, 'zh-CN')),
       distanceMeters: accumulator.distanceMeters,
       distanceShare: numberedDenominator !== null && numberedDenominator > 0
@@ -485,6 +487,14 @@ function summarizeRoadDistances(
       distanceShareDenominatorMeters: numberedDenominator,
     },
   }
+}
+
+/** 与总览共用有效性、编号及省份规则，供道路档案逐路段追溯。 */
+export function summarizeSegmentRoadDistances(segment: RouteSegment, cache?: RouteCacheRecord) {
+  return summarizeRoadDistances(selectCurrentRoadAnalysis(
+    [{ tripId: 'segment', segment }],
+    new Map(cache ? [[segment.id, cache]] : []),
+  ))
 }
 
 function summarizeOverallStatus(

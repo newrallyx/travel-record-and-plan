@@ -26,6 +26,7 @@ export function buildResolvedRoutePatch({
     estimatedDurationSeconds:
       typeof route.durationSeconds === 'number' ? route.durationSeconds : null,
     durationUpdatedAt: route.durationUpdatedAt,
+    waypointEstimates: route.waypointEstimates,
     estimatedTollYuan:
       routeType === 'DRIVING' && typeof route.estimatedTollYuan === 'number'
         ? route.estimatedTollYuan

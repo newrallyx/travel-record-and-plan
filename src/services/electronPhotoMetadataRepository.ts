@@ -26,6 +26,7 @@ export const electronPhotoMetadataRepository: PhotoMetadataRepository = {
     await requirePhotoLibraryApi().savePhotos(photos)
   },
   deletePhoto: (photoId: string) => requirePhotoLibraryApi().deletePhoto(photoId),
+  deletePhotos: (photoIds: string[]) => requirePhotoLibraryApi().deletePhotos(photoIds),
   deleteTripData: (tripId: string, segmentIds: string[]) => (
     requirePhotoLibraryApi().deleteTripData(tripId, segmentIds)
   ),

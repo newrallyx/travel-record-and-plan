@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { IDBFactory } from 'fake-indexeddb'
@@ -9,6 +9,7 @@ import { PhotoMetadataStore } from '../electron/photoMetadataStore.mjs'
 import { PhotoThumbnailCache } from '../electron/photoThumbnailCache.mjs'
 import {
   commitPreparedDesktopBackup,
+  commitPhotoCleanup,
   prepareDesktopBackupZip,
   readTripBackupJsonFile,
   restoreDesktopBackupZip,
@@ -208,6 +209,7 @@ test('desktop ZIP preparation is non-mutating and commit rolls thumbnails back w
   await targetStore.saveRoot({ ...createRoot(path.join(tempDirectory, 'old-photos')), id: 'root-old' })
   await targetStore.savePhoto({ ...createPhoto('photo-old', 'segment-old'), libraryRootId: 'root-old' })
   await targetCache.save('photo-old', createWebp([9]))
+  await targetCache.save('unindexed-cache', createWebp([8]))
 
   const prepared = await prepareDesktopBackupZip({
     zipPath,
@@ -236,4 +238,72 @@ test('desktop ZIP preparation is non-mutating and commit rolls thumbnails back w
   assert.equal(await targetStore.getPhoto('photo-new'), null)
   assert.deepEqual(await targetCache.read('photo-old'), createWebp([9]))
   assert.equal(await targetCache.read('photo-new'), null)
+  assert.deepEqual(await targetCache.read('unindexed-cache'), createWebp([8]))
+  await prepared.dispose()
+})
+
+test('ZIP streams thumbnail files, leaves preparation on disk, and releases staging after use', async (t) => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'roadtrip-stream-backup-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const store = new PhotoMetadataStore(path.join(directory, 'library.json'))
+  const cache = new PhotoThumbnailCache(path.join(directory, 'thumbnails'))
+  await store.saveRoot(createRoot(path.join(directory, 'originals')))
+  await store.savePhoto(createPhoto('photo-stream', 'segment'))
+  await cache.save('photo-stream', createWebp([7]))
+  cache.read = async () => { throw new Error('full thumbnail buffers must not be loaded') }
+  const zipPath = path.join(directory, 'backup.zip')
+  await writeDesktopBackupZip({ zipPath, tripBackupJson: createTripBackupJson(),
+    referencedPhotoIds: ['photo-stream'], metadataStore: store, thumbnailCache: cache })
+  const prepared = await prepareDesktopBackupZip({ zipPath, tempParentPath: directory, thumbnailCache: cache })
+  const [entry] = prepared.thumbnailEntries
+  assert.equal(entry.data, undefined)
+  assert.deepEqual(await readFile(entry.filePath), createWebp([7]))
+  await commitPreparedDesktopBackup({ prepared, metadataStore: store, thumbnailCache: cache })
+  await prepared.dispose()
+  await assert.rejects(readFile(entry.filePath), { code: 'ENOENT' })
+  assert.deepEqual(await readFile(cache.getCachePath('photo-stream')), createWebp([7]))
+})
+
+test('archive failure after opening output preserves an existing ZIP and removes temporary output', async (t) => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'roadtrip-failed-backup-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const store = new PhotoMetadataStore(path.join(directory, 'library.json'))
+  const cache = new PhotoThumbnailCache(path.join(directory, 'thumbnails'))
+  await store.saveRoot(createRoot(path.join(directory, 'originals')))
+  await store.savePhoto(createPhoto('photo', 'segment'))
+  await cache.save('photo', createWebp())
+  const zipPath = path.join(directory, 'backup.zip')
+  await writeFile(zipPath, 'existing complete backup')
+  const getCacheKey = cache.getCacheKey.bind(cache)
+  let calls = 0
+  cache.getCacheKey = (id) => {
+    // Path validation and metadata succeed; fail while adding an archive entry.
+    if (++calls === 3) throw new Error('archive entry failure')
+    return getCacheKey(id)
+  }
+  await assert.rejects(writeDesktopBackupZip({ zipPath, tripBackupJson: createTripBackupJson(),
+    referencedPhotoIds: ['photo'], metadataStore: store, thumbnailCache: cache }), /archive entry failure/)
+  assert.equal(await readFile(zipPath, 'utf8'), 'existing complete backup')
+  assert.equal((await readdir(directory)).some((name) => name.startsWith('backup.zip.') && name.endsWith('.tmp')), false)
+})
+
+test('legacy photo cleanup restores thumbnail files when metadata commit fails', async (t) => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'roadtrip-json-cleanup-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const store = new PhotoMetadataStore(path.join(directory, 'library.json'))
+  const cache = new PhotoThumbnailCache(path.join(directory, 'thumbnails'))
+  await store.saveRoot(createRoot(path.join(directory, 'originals')))
+  await store.savePhotos([createPhoto('keep', 'segment'), createPhoto('orphan', 'other')])
+  await cache.save('keep', createWebp([1]))
+  await cache.save('orphan', createWebp([2]))
+  const failing = { read: () => store.read(), deletePhotos: async () => { throw new Error('metadata failure') } }
+  await assert.rejects(commitPhotoCleanup({ referencedPhotoIds: ['keep'], metadataStore: failing, thumbnailCache: cache }), /metadata failure/)
+  assert.deepEqual(await cache.read('orphan'), createWebp([2]))
+  assert.ok(await store.getPhoto('orphan'))
+  assert.deepEqual(await commitPhotoCleanup({ referencedPhotoIds: ['keep'], metadataStore: store, thumbnailCache: cache }), {
+    deletedPhotoIds: ['orphan'], deletedThumbnailIds: ['orphan'],
+  })
+  assert.equal(await store.getPhoto('orphan'), null)
+  assert.equal(await cache.read('orphan'), null)
+  assert.deepEqual(await cache.read('keep'), createWebp([1]))
 })

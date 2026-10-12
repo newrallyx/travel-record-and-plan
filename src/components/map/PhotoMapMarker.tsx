@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Marker, Popup } from 'react-leaflet'
 import { loadPhotoThumbnail } from '../../services/photoThumbnailLoadQueue'
 import type { LinkedPhotoRecord } from '../../types/photo'
@@ -14,6 +14,14 @@ export function PhotoMapMarker({ photo, selected, onSelect }: PhotoMapMarkerProp
   const markerRef = useRef<{ openPopup: () => void } | null>(null)
   const [shouldLoadThumbnail, setShouldLoadThumbnail] = useState(false)
   const [thumbnailUrl, setThumbnailUrl] = useState('')
+  // Popup.update 会触发地图移动；稳定内容可避免 moveend → 重绘 → update 循环。
+  const popupContent = useMemo(() => (
+    <div className="photo-map-popup-content">
+      {thumbnailUrl ? <img src={thumbnailUrl} alt={photo.originalFilename} /> : <span>正在读取缩略图…</span>}
+      <strong>{photo.originalFilename}</strong>
+      <small>{photo.capturedAt ? new Date(photo.capturedAt).toLocaleString() : '无拍摄时间'}</small>
+    </div>
+  ), [thumbnailUrl, photo.originalFilename, photo.capturedAt])
 
   useEffect(() => {
     if (selected) markerRef.current?.openPopup()
@@ -55,11 +63,7 @@ export function PhotoMapMarker({ photo, selected, onSelect }: PhotoMapMarkerProp
       }}
     >
       <Popup className="photo-map-popup">
-        <div className="photo-map-popup-content">
-          {thumbnailUrl ? <img src={thumbnailUrl} alt={photo.originalFilename} /> : <span>正在读取缩略图…</span>}
-          <strong>{photo.originalFilename}</strong>
-          <small>{photo.capturedAt ? new Date(photo.capturedAt).toLocaleString() : '无拍摄时间'}</small>
-        </div>
+        {popupContent}
       </Popup>
     </Marker>
   )

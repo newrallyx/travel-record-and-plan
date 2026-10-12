@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { alertDialog } from './ConfirmDialog'
 import EmptyState from './EmptyState'
 import { AppIcon } from './icons'
@@ -7,6 +7,7 @@ import type { RoutePreference, RouteSegment, RouteSummary, RouteType, SegmentRev
 import { formatDistance, getTrackDistanceMeters } from '../utils/distance'
 import {
   formatDurationUpdatedAt,
+  formatDurationSeconds,
   formatSegmentEstimatedDuration,
   hasCurrentDurationEstimate,
 } from '../utils/durations'
@@ -29,6 +30,7 @@ import {
   type ReviewFactsDraftInput,
 } from '../utils/reviewFacts'
 import { getReviewTagLabel } from '../utils/reviewTags'
+import { getCurrentWaypointEstimates } from '../utils/waypointEstimates'
 
 function formatCoordText(coord?: { lat: number; lon: number }): string {
   if (!coord) return '未解析坐标'
@@ -90,11 +92,13 @@ interface TripListItem {
 }
 
 interface MapPlaceholderProps {
+  isPlanning?: boolean
   isReadonlyMode: boolean
   placeholderMode: 'trip-list' | 'segment-list'
   tripListItems: TripListItem[]
   onViewTrip: (tripId: string) => void
   onOpenTripManager: () => void
+  onOpenTripEditor: () => void
   onDeleteTrip: (tripId: string) => void
 
   filteredSegments: Array<RouteSegment & { dayDate?: string }>
@@ -142,14 +146,18 @@ interface MapPlaceholderProps {
   onDetailDraftStateChange: (state: { segmentId: string | null; dirty: boolean }) => void
   onRefreshRouteEstimate: () => void
   isRouteEstimateRefreshing: boolean
+  editRequest?: { segmentId: string; revision: number }
+  onEditRequestConsumed?: () => void
 }
 
 function MapPlaceholder({
+  isPlanning = false,
   isReadonlyMode,
   placeholderMode,
   tripListItems,
   onViewTrip,
   onOpenTripManager,
+  onOpenTripEditor,
   onDeleteTrip,
   filteredSegments,
   summary,
@@ -192,10 +200,14 @@ function MapPlaceholder({
   onDetailDraftStateChange,
   onRefreshRouteEstimate,
   isRouteEstimateRefreshing,
+  editRequest,
+  onEditRequestConsumed,
 }: MapPlaceholderProps) {
   const [detailDraft, setDetailDraft] = useState<DetailEditDraft | null>(null)
+  const consumedEditRequest = useRef<number | undefined>()
   const detailEditMode = Boolean(activeSegment && detailDraft?.segmentId === activeSegment.id)
   const isSingleSegmentView = Boolean(activeSegment && filteredSegments.length === 1)
+  const waypointEstimates = activeSegment ? getCurrentWaypointEstimates(activeSegment) : undefined
 
   const detailDraftDirty = useMemo(() => {
     if (!activeSegment || !detailDraft || detailDraft.segmentId !== activeSegment.id) return false
@@ -270,6 +282,14 @@ function MapPlaceholder({
     })
   }
 
+  useEffect(() => {
+    if (!editRequest || editRequest.revision === consumedEditRequest.current
+      || editRequest.segmentId !== activeSegment?.id || isReadonlyMode) return
+    consumedEditRequest.current = editRequest.revision
+    startDetailEdit()
+    onEditRequestConsumed?.()
+  }, [editRequest, activeSegment?.id, isReadonlyMode])
+
   const cancelDetailEdit = () => {
     onCancelSegmentMetaEdit()
     onCancelEndpointEdit()
@@ -299,17 +319,18 @@ function MapPlaceholder({
   if (placeholderMode === 'trip-list') {
     return (
       <section className="card-section">
-        <h2>轨迹详情</h2>
-        <p>当前筛选：旅程【{filterContext.tripName}】 / 日期【{filterContext.dayDate}】 / 路段【{filterContext.segmentName}】</p>
-        <p className="hint-text">已切换为“所有旅程列表”视图，便于管理旅程。</p>
+        <h2>全部旅程 · {tripListItems.length} 次</h2>
         <ul className="trip-placeholder-list">
           {tripListItems.map((trip) => (
             <li key={trip.id} className="trip-placeholder-item">
               <div className="trip-main-meta">
                 <strong title={trip.title}>{trip.title}</strong>
                 <small>
-                  {trip.startDate} ~ {trip.endDate} · {trip.segmentCount} 条路段 · 旅程总里程：{trip.tripDistanceText}
-                  {' · '}预计行驶时间：{trip.tripDurationText}
+                  {trip.startDate} ～ {trip.endDate} · {trip.segmentCount} 条路段
+                </small>
+                <small>
+                  预计里程：{trip.tripDistanceText}
+                  {' · '}预计行驶：{trip.tripDurationText}
                   {' · '}预估过路费：{trip.tripTollText}
                 </small>
               </div>
@@ -337,7 +358,8 @@ function MapPlaceholder({
           <EmptyState
             icon="trip"
             title="还没有旅程"
-            description="在上方「新增旅程」创建你的第一条自驾记录。"
+            description={isReadonlyMode ? '当前工作区没有旅程。' : '在旅程编辑中创建第一条自驾记录。'}
+            action={!isReadonlyMode && <button type="button" className="btn-primary" onClick={onOpenTripEditor}>前往旅程编辑</button>}
           />
         )}
       </section>
@@ -345,7 +367,16 @@ function MapPlaceholder({
   }
 
   return (
-    <section className={`card-section detail-panel-card${isSingleSegmentView ? ' detail-panel-card-single' : ''}`}>
+    <section className={`card-section detail-panel-card${isSingleSegmentView ? ' detail-panel-card-single' : ''}${detailEditMode ? ' detail-panel-editing' : ''}`}>
+      {detailEditMode && (
+        <div className="detail-save-toolbar" aria-label="路段编辑操作">
+          <span role="status">{detailDraftDirty ? '有未保存更改' : '编辑中 · 暂无更改'}</span>
+          <div className="segment-detail-edit-actions">
+            <button type="button" className="btn-primary" onClick={saveDetailEdit} disabled={isReadonlyMode} title="保存全部（Ctrl+S）">保存全部</button>
+            <button type="button" className="btn-secondary" onClick={cancelDetailEdit}>取消</button>
+          </div>
+        </div>
+      )}
       {isSingleSegmentView && activeSegment ? (
         <div id="detail-seg-meta" className="detail-single-heading">
           <div className="detail-single-title-row">
@@ -356,19 +387,34 @@ function MapPlaceholder({
             </div>
             <div className="detail-single-actions" aria-label="路段操作">
               {!detailEditMode ? (
-                <button type="button" onClick={startDetailEdit} disabled={isReadonlyMode}>编辑详情</button>
+                <button type="button" className="btn-primary" onClick={startDetailEdit} disabled={isReadonlyMode}>编辑详情</button>
               ) : (
-                <>
-                  <button type="button" className="btn-primary" onClick={saveDetailEdit} disabled={isReadonlyMode}>保存全部</button>
-                  <button type="button" className="btn-secondary" onClick={cancelDetailEdit}>取消</button>
-                </>
+                <span className="hint-text">正在编辑</span>
               )}
-              <button type="button" onClick={() => onMoveSegmentInTrip(activeSegment.id, 'up')} disabled={isReadonlyMode || !canMoveSegmentUp}>上移</button>
-              <button type="button" onClick={() => onMoveSegmentInTrip(activeSegment.id, 'down')} disabled={isReadonlyMode || !canMoveSegmentDown}>下移</button>
-              <button type="button" className="danger-btn" onClick={() => onDeleteSegment({ segmentId: activeSegment.id, index: 0, name: activeSegment.name })} disabled={isReadonlyMode}>
-                <AppIcon name="trash" className="icon-inline" />
-                删除
-              </button>
+              {!detailEditMode && <details className="detail-more-menu" onKeyDown={(event) => {
+                if (event.key === 'Escape') {
+                  event.currentTarget.open = false
+                  event.currentTarget.querySelector('summary')?.focus()
+                }
+              }}>
+                <summary>更多</summary>
+                <div className="detail-more-actions">
+                  <button type="button" onClick={(event) => {
+                    event.currentTarget.closest('details')?.removeAttribute('open')
+                    onMoveSegmentInTrip(activeSegment.id, 'up')
+                  }} disabled={isReadonlyMode || !canMoveSegmentUp}>上移路段</button>
+                  <button type="button" onClick={(event) => {
+                    event.currentTarget.closest('details')?.removeAttribute('open')
+                    onMoveSegmentInTrip(activeSegment.id, 'down')
+                  }} disabled={isReadonlyMode || !canMoveSegmentDown}>下移路段</button>
+                  <button type="button" className="danger-btn" onClick={(event) => {
+                    event.currentTarget.closest('details')?.removeAttribute('open')
+                    onDeleteSegment({ segmentId: activeSegment.id, index: 0, name: activeSegment.name })
+                  }} disabled={isReadonlyMode}>
+                    <AppIcon name="trash" className="icon-inline" />删除路段
+                  </button>
+                </div>
+              </details>}
             </div>
           </div>
           <p className="detail-single-endpoints">
@@ -386,12 +432,7 @@ function MapPlaceholder({
       ) : (
         <>
           <h2>轨迹详情</h2>
-          <p>
-            当前筛选：旅程【{filterContext.tripName}】 / 日期【{filterContext.dayDate}】 / 路段【
-            {filterContext.segmentName}
-            】
-          </p>
-          <p>当前筛选路段数量：{filteredSegments.length}</p>
+          <p className="hint-text">{filterContext.tripName} · {filterContext.dayDate} · {filteredSegments.length} 条路段</p>
         </>
       )}
 
@@ -401,25 +442,12 @@ function MapPlaceholder({
 
       {!!activeSegment && (!isSingleSegmentView || detailEditMode) && (
         <div className={`segment-meta-editor ${detailEditMode ? 'editing' : ''}`}>
-          {!isSingleSegmentView && <div className="segment-detail-edit-header">
+          {!isSingleSegmentView && !detailEditMode && <div className="segment-detail-edit-header">
             <div>
               <p>轨迹信息</p>
-              <span>{detailEditMode ? (detailDraftDirty ? '编辑中 · 有未保存更改' : '编辑中') : '只读浏览'}</span>
+              <span>只读浏览</span>
             </div>
-            {!detailEditMode ? (
-              <button type="button" onClick={startDetailEdit} disabled={isReadonlyMode}>
-                编辑详情
-              </button>
-            ) : (
-              <div className="segment-detail-edit-actions">
-                <button type="button" className="btn-primary" onClick={saveDetailEdit} disabled={isReadonlyMode}>
-                  保存全部
-                </button>
-                <button type="button" className="btn-secondary" onClick={cancelDetailEdit}>
-                  取消
-                </button>
-              </div>
-            )}
+            <button type="button" className="btn-primary" onClick={startDetailEdit} disabled={isReadonlyMode}>编辑详情</button>
           </div>}
           {detailEditMode ? (
             <div className="segment-meta-row">
@@ -551,6 +579,7 @@ function MapPlaceholder({
           <summary>路线预估</summary>
           <div className="detail-collapsible-body">
           <div className="segment-detail-readonly-grid">
+            {isPlanning && <div><small>全程预计里程</small><strong>{formatDistance(getTrackDistanceMeters(activeSegment))}</strong></div>}
             <div><small>预计行驶时间</small><strong>{formatSegmentEstimatedDuration(activeSegment)}</strong></div>
             <div>
               <small>耗时计算时间</small>
@@ -641,6 +670,11 @@ function MapPlaceholder({
           <summary>途经点<span className="detail-collapsible-count">{waypoints.length}</span></summary>
           <div className="detail-collapsible-body">
           <p>途经点数量：{waypoints.length}</p>
+          {isPlanning && waypoints.length > 0 && <p className="hint-text">
+            从本路段起点按途经顺序累计，不含游览、休息等停留时间。
+            {detailEditMode ? ' 编辑期间不显示途经点预估，保存后查看。'
+              : !waypointEstimates ? ' 分段预估待计算，可点击上方“重新计算路线、费用和时间”。' : ''}
+          </p>}
 
           {detailEditMode && (
             <div className="waypoint-actions">
@@ -673,12 +707,25 @@ function MapPlaceholder({
                     disabled={isReadonlyMode}
                   />
                 ) : (
-                  <span>
+                  <span className="waypoint-content">
+                    <span>
                     {waypoint.name || '未命名途经点'}
                     {typeof waypoint.lat === 'number' && typeof waypoint.lng === 'number'
                       ? `（${waypoint.lat.toFixed(6)}, ${waypoint.lng.toFixed(6)}）`
                       : '（未解析坐标）'}
                     {waypoint.timestamp ? ` · ${waypoint.timestamp}` : ''}
+                    </span>
+                    {isPlanning && <small className="waypoint-estimate" aria-live="polite">
+                      {isRouteEstimateRefreshing ? '正在计算途经点预估…'
+                        : typeof waypoint.lat !== 'number' || typeof waypoint.lng !== 'number' ? '待解析坐标'
+                        : !waypointEstimates ? '距起点：待计算 · 预计行驶：待计算'
+                        : <>
+                          距起点：{waypointEstimates[index]?.distanceMeters !== undefined
+                            ? `${(waypointEstimates[index].distanceMeters! / 1000).toFixed(1)} 公里` : '暂无可靠数据'}
+                          {' · '}预计行驶：{waypointEstimates[index]?.durationSeconds !== undefined
+                            ? formatDurationSeconds(waypointEstimates[index].durationSeconds!) : '暂无可靠数据'}
+                        </>}
+                    </small>}
                   </span>
                 )}
 

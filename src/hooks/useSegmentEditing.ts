@@ -1,6 +1,7 @@
 import { useMemo, type Dispatch, type SetStateAction } from 'react'
 import { saveManualSegmentRouteCache } from '../services/routeCacheDb.ts'
 import { buildSegmentRouteKey } from '../utils/routeBuildKey'
+import { showToast } from '../components/ToastHost'
 import type { CoordPoint, RouteSegment, Waypoint } from '../types/trip'
 import type { EndpointDraft } from './useTripManager'
 
@@ -98,11 +99,14 @@ export function useSegmentEditing({
       endCoord: payload.endCoord,
       points: payload.points,
       routeBuildKey,
+      waypointEstimates: undefined,
     }))
     void saveManualSegmentRouteCache({
       segmentId: payload.segmentId,
       routeBuildKey,
       points: payload.points,
+    }).catch(() => {
+      showToast('手工轨迹缓存保存失败，请检查存储空间或权限后重试。', 'error')
     })
   }
 

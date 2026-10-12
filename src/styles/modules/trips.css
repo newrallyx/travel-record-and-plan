@@ -31,6 +31,19 @@
   gap: 8px;
 }
 
+.waypoint-content {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.waypoint-estimate {
+  display: block;
+  margin-top: 4px;
+  color: var(--text-secondary, #475569);
+  line-height: 1.6;
+}
+
 .endpoint-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -56,16 +69,20 @@
 }
 
 .endpoint-readonly-card {
-  border: 1px solid rgba(165, 180, 252, 0.45);
+  border: 1px solid var(--line);
   border-radius: 10px;
-  background: var(--primary-softer);
+  background: var(--surface);
   padding: 9px 10px;
   display: grid;
   gap: 3px;
 }
 
 .endpoint-readonly-card small {
-  color: var(--ink-3);
+  justify-self: start;
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  background: var(--success-soft);
+  color: var(--success-text);
   font-size: var(--font-caption);
   font-weight: 600;
   letter-spacing: 0.03em;
@@ -80,6 +97,12 @@
 .endpoint-readonly-card span {
   color: var(--ink-3);
   font-size: var(--font-caption);
+}
+
+/* 颜色集中在小标签，卡片本身保持中性。 */
+.endpoint-readonly-card:last-child small {
+  color: var(--accent-strong);
+  background: var(--accent-soft);
 }
 
 .waypoint-actions,
@@ -142,24 +165,25 @@
   margin: 0;
   padding: 0 3px 0 0;
   display: grid;
-  gap: 10px;
+  gap: 0;
   align-content: start;
 }
 
 .trip-manage-item {
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  padding: 12px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  padding: 12px 4px;
   background: var(--surface);
   display: grid;
   gap: 8px;
-  box-shadow: 0 1px 3px rgba(16, 24, 40, 0.04);
+  box-shadow: none;
   transition: box-shadow 160ms ease, border-color 160ms ease, transform 160ms ease;
 }
 
 .trip-manage-item:hover {
-  border-color: rgba(99, 102, 241, 0.3);
-  box-shadow: var(--shadow-card-hover);
+  border-color: var(--line);
+  background: var(--surface-2);
 }
 
 .trip-manage-item[draggable='true'] {
@@ -286,7 +310,7 @@
 
 .trip-placeholder-list {
   display: grid;
-  gap: 10px;
+  gap: 0;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -296,25 +320,50 @@
   min-width: 0;
   display: grid;
   gap: 10px;
-  padding: 12px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
+  padding: 14px 0;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
   background: var(--surface);
-  box-shadow: 0 1px 3px rgba(16, 24, 40, 0.04);
+  box-shadow: none;
   transition: box-shadow 160ms ease, border-color 160ms ease;
 }
 
 .trip-placeholder-item:hover {
-  border-color: rgba(99, 102, 241, 0.3);
-  box-shadow: var(--shadow-card-hover);
+  border-color: var(--line);
 }
 
 .trip-placeholder-item .trip-item-actions {
-  padding-top: 8px;
-  border-top: 1px solid var(--line);
+  padding-top: 2px;
+  border-top: 0;
+}
+
+.trip-placeholder-item .trip-item-actions button {
+  border-color: transparent;
+  padding-inline: 8px;
+}
+
+.trip-placeholder-item .trip-item-actions button:hover:not(:disabled) {
+  border-color: var(--line);
 }
 
 .trip-inline-edit {
   display: grid;
   gap: 10px;
 }
+/* 可选字段折叠时仍保留表单草稿。 */
+.trip-editor-options { min-width: 0; border-top: 1px solid var(--line); }
+.trip-editor-options > summary {
+  cursor: pointer;
+  padding: 10px 0;
+  color: var(--ink);
+  font-size: var(--font-caption);
+  overflow-wrap: anywhere;
+}
+.trip-editor-options > summary span {
+  margin-left: 8px;
+  color: var(--ink-3);
+  font-weight: 400;
+}
+.trip-editor-options > summary:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.trip-editor-options-body { display: grid; gap: 10px; min-width: 0; padding: 2px 0 12px; }

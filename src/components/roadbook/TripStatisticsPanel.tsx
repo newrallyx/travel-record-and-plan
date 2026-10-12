@@ -20,13 +20,17 @@ function CompactScore({ title, distribution }: { title: string; distribution: Sc
 
 export default function TripStatisticsPanel({ trip, trips }: { trip: Trip; trips: readonly Trip[] }) {
   const currentTrips = useMemo(() => [trip], [trip])
-  const { statistics, cacheStatus } = useTripStatistics(currentTrips, trips)
+  const { statistics, cacheStatus, retryCacheLoad } = useTripStatistics(currentTrips, trips)
   const classificationRows = useMemo(() => getSingleTripClassificationRows(statistics.current), [statistics.current])
   return <details className="roadbook-statistics">
     <summary>本次旅程统计</summary>
-    {cacheStatus !== 'ready' && <p className="statistics-road-note">{cacheStatus === 'loading' ? '正在读取道路分析…' : '道路分析暂不可用，里程与评分记录仍可查看。'}</p>}
+    {cacheStatus === 'loading' && <p className="statistics-road-note" role="status">正在读取道路分析…</p>}
+    {cacheStatus === 'unavailable' && <p className="statistics-road-note" role="alert">
+      道路分析缓存读取失败，道路统计暂不可用，里程与评分记录仍可查看。{' '}
+      <button type="button" className="btn-secondary" onClick={retryCacheLoad}>重试读取</button>
+    </p>}
     <div className="roadbook-statistics-grid">
-      <RoadComposition statistics={statistics} compact />
+      {cacheStatus !== 'unavailable' && <RoadComposition statistics={statistics} compact />}
       <section className="statistics-module" aria-label="本次里程与时间分类">
         <header className="statistics-module-heading"><div><h3>本次里程与时间分类</h3></div></header>
         <dl className="roadbook-classification-list">{classificationRows.map((row) => <div key={row.label}>
@@ -38,6 +42,6 @@ export default function TripStatisticsPanel({ trip, trips }: { trip: Trip; trips
         <CompactScore title="难度" distribution={statistics.current.difficultyScoreDistribution} />
       </div>
     </div>
-    <NamedRoadTable statistics={statistics} compact />
+    {cacheStatus !== 'unavailable' && <NamedRoadTable statistics={statistics} compact />}
   </details>
 }

@@ -1,48 +1,63 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { SegmentTrack } from './types'
 import type { OverviewLine } from './overviewAggregation'
-import { overviewCache, overviewCacheKey, persistentOverviewCache } from './overviewCache'
+import type { OverviewWorkerRequest, OverviewWorkerResponse } from './overviewAggregation.worker'
+import { overviewCache, persistentOverviewCache } from './overviewCache'
+
+// useMapTracks replaces its immutable snapshot when route data changes. Weak keys
+// let unchanged snapshots revisit cached scopes without scanning coordinates.
+const scopeKeys = new WeakMap<SegmentTrack[], string>()
 
 /** Compute full-resolution geometry off the UI thread. Scope changes cancel obsolete work. */
 export function useOverviewAggregation(tracks: SegmentTrack[], enabled: boolean) {
-  const key = useMemo(() => enabled ? overviewCacheKey(tracks) : '', [tracks, enabled])
-  const cached = enabled ? overviewCache.get(key) : undefined
-  const [result, setResult] = useState<{ key: string; lines?: OverviewLine[]; error?: boolean }>()
+  const key = enabled ? scopeKeys.get(tracks) : undefined
+  const cached = key ? overviewCache.get(key) : undefined
+  const [result, setResult] = useState<{ tracks: SegmentTrack[]; lines?: OverviewLine[]; error?: boolean }>()
   useEffect(() => {
-    if (!enabled || overviewCache.get(key)) return
+    if (!enabled) return
+    const knownKey = scopeKeys.get(tracks)
+    if (knownKey && overviewCache.get(knownKey)) return
     let active = true
     let worker: Worker | undefined
-    async function load() {
-      const saved = await persistentOverviewCache.get(key)
+    let contentKey: string | undefined
+    const fail = () => {
       if (!active) return
-      if (saved) {
-        overviewCache.set(key, saved)
-        setResult({ key, lines: saved })
-        return
-      }
-      try {
-        worker = new Worker(new URL('./overviewAggregation.worker.ts', import.meta.url), { type: 'module' })
-        worker.onmessage = (event: MessageEvent<OverviewLine[]>) => {
-          if (!active) return
-          overviewCache.set(key, event.data)
-          void persistentOverviewCache.set(key, event.data)
-          setResult({ key, lines: event.data })
-          worker?.terminate()
-        }
-        worker.onerror = () => {
-          if (!active) return
-          setResult({ key, error: true })
-          worker?.terminate()
-        }
-        worker.postMessage(tracks)
-      } catch {
-        worker?.terminate()
-        setResult({ key, error: true })
-      }
+      setResult({ tracks, error: true })
+      worker?.terminate()
     }
-    void load()
+    try {
+      worker = new Worker(new URL('./overviewAggregation.worker.ts', import.meta.url), { type: 'module' })
+      worker.onmessage = async (event: MessageEvent<OverviewWorkerResponse>) => {
+        if (!active) return
+        try {
+          if (event.data.type === 'key') {
+            contentKey = event.data.key
+            scopeKeys.set(tracks, contentKey)
+            const saved = overviewCache.get(contentKey) ?? await persistentOverviewCache.get(contentKey)
+            if (!active) return
+            if (saved) {
+              overviewCache.set(contentKey, saved)
+              setResult({ tracks, lines: saved })
+              worker?.terminate()
+            } else {
+              worker?.postMessage({ type: 'aggregate' } satisfies OverviewWorkerRequest)
+            }
+          } else if (event.data.type === 'result' && contentKey) {
+            overviewCache.set(contentKey, event.data.lines)
+            void persistentOverviewCache.set(contentKey, event.data.lines)
+            setResult({ tracks, lines: event.data.lines })
+            worker?.terminate()
+          } else {
+            fail()
+          }
+        } catch { fail() }
+      }
+      worker.onerror = fail
+      worker.onmessageerror = fail
+      worker.postMessage({ type: 'prepare', tracks } satisfies OverviewWorkerRequest)
+    } catch { fail() }
     return () => { active = false; worker?.terminate() }
-  }, [tracks, enabled, key])
-  const current = enabled && result?.key === key ? result : undefined
+  }, [tracks, enabled])
+  const current = enabled && result?.tracks === tracks ? result : undefined
   return { lines: cached ?? current?.lines, error: !cached && (current?.error ?? false), pending: enabled && !cached && !current }
 }

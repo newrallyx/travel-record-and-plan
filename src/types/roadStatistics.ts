@@ -53,12 +53,24 @@ export interface RoadClassificationResult extends RoadClassification {
   normalizedRoadName: string
 }
 
+/** Additional route identities for the same physical interval, never duplicate mileage. */
+export interface ConcurrentRoad {
+  roadClass: Extract<RoadClass, 'EXPRESSWAY' | 'NATIONAL_ROAD' | 'PROVINCIAL_ROAD'>
+  routeRef: string
+  provinceCode?: string
+}
+
 export interface RouteRoadPart extends RoadClassification {
+  concurrentRoads?: ConcurrentRoad[]
+  /** Interval annotations own these parts; edit/revoke the annotation itself. */
+  manualAnnotationId?: string
   /** Endpoint for travel in polyline order; pending disables automatic naming. */
   manualDirection?: string
   distanceMeters: number
   distanceSource?: RoadDistanceSource
   roadName?: string
+  /** Original name retained when an interval annotation overrides the display name. */
+  originalRoadName?: string
   tollRoad?: string
   instruction?: string
   polyline?: Array<[number, number]>
@@ -70,6 +82,9 @@ export interface RouteRoadPart extends RoadClassification {
 }
 
 export interface ManualRoadIntervalAnnotation {
+  /** Optional name applied to every part in this annotation; empty uses source names. */
+  roadName?: string
+  concurrentRoads?: ConcurrentRoad[]
   manualDirection?: string
   id: string
   startPointIndex: number

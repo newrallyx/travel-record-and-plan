@@ -22,6 +22,7 @@ interface MapPanelProps {
   selectedTripId?: string
   overviewYear?: string
   isOverviewMode: boolean
+  animateViewport?: boolean
   aggregateOverview?: boolean
   editingSegmentId: string | null
   onCancelEdit: () => void
@@ -59,6 +60,7 @@ function MapPanel({
   selectedTripId = '',
   overviewYear,
   isOverviewMode,
+  animateViewport,
   aggregateOverview = false,
   editingSegmentId,
   onCancelEdit,
@@ -204,6 +206,7 @@ function MapPanel({
       )}
 
       <MapCanvas
+        animateViewport={animateViewport}
         filteredSegments={filteredSegments}
         renderedTracks={trackEditing.renderedTracks}
         overviewLines={overview.lines}

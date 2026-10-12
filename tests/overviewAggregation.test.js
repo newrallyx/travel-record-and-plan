@@ -516,3 +516,38 @@ test('legacy merged connector instructions apply only to their documented first 
   assert.equal(at(tail, [point(1000).lat, point(1000).lon]), 2);
 });
 
+test('manual highway correction does not retain a different numbered connector as mainline evidence', () => {
+  const corrected = { source: 'MANUAL', routeRef: 'G30', roadName: 'S3011绕城高速联络线',
+    tollRoad: 'G30连霍高速', instruction: '沿S3011绕城高速联络线途径灞河大桥、G30连霍高速向东行驶88.9千米向右前方行驶进入匝道' }
+  const tracks = [track('east-0', [[0, 0], [1000, 0]], 'EXPRESSWAY', { routeRef: 'G30' }),
+    ...[1, 2].map(i => track(`east-${i}`, [[0, 0], [1000, 0]], 'EXPRESSWAY', corrected)),
+    ...[0, 1].map(i => track(`west-${i}`, [[1000, 35], [0, 35]], 'EXPRESSWAY', { routeRef: 'G30' }))]
+  const before = structuredClone(tracks)
+  const lines = aggregateOverviewTracks(tracks, false), at = createOverviewHoverIndex(lines)
+  for (const prefix of ['east', 'west']) {
+    const own = lines.find(l => l.sourceIds.includes(`${prefix}-0`))
+    assert.equal(own.count, prefix === 'east' ? 3 : 2)
+    assert.equal(own.mainline, true)
+    const p = point(500, prefix === 'east' ? 0 : 35)
+    assert.equal(at(own, [p.lat, p.lon]), 5)
+  }
+  assert.deepEqual(tracks, before)
+})
+
+test('manual connector correction still excludes ramps and unconfirmed mainlines', () => {
+  for (const overrides of [
+    { source: 'ROAD_CODE' }, { routeRef: 'S3011' }, { tollRoad: undefined }, { tollRoad: 'G5京昆高速' },
+    { roadName: 'S3011绕城高速联络线出口' }, { roadName: 'S3011绕城高速联络线匝道' },
+    { roadName: 'G30连霍高速出口' }, { tollRoad: 'G30连霍高速出口' },
+  ]) {
+    const a = track('a', [[0, 0], [1000, 0]], 'EXPRESSWAY', {
+      source: 'MANUAL', routeRef: 'G30', roadName: 'S3011绕城高速联络线', tollRoad: 'G30连霍高速', ...overrides })
+    const b = track('b', [[1000, 35], [0, 35]], 'EXPRESSWAY', { routeRef: a.roadParts[0].routeRef })
+    const lines = aggregateOverviewTracks([a, b], false), at = createOverviewHoverIndex(lines)
+    const own = lines.find(l => l.sourceIds.includes('a'))
+    assert.equal(own.mainline, false, JSON.stringify(overrides))
+    const p = point(500)
+    assert.equal(at(own, [p.lat, p.lon]), 1, JSON.stringify(overrides))
+  }
+})
+

@@ -65,6 +65,7 @@ export interface NumberedRoadDistanceEntry {
   provinceCode?: string
   provinceName?: string
   provinceStatus?: RoadProvinceStatus
+  provinceCandidates?: string[]
   roadNames: string[]
   distanceMeters: number
   distanceShare: number | null
@@ -77,6 +78,7 @@ export interface UnnumberedRoadDistanceEntry {
   provinceCode?: string
   provinceName?: string
   provinceStatus?: RoadProvinceStatus
+  provinceCandidates?: string[]
   routeRefs?: string[]
   roadNames: string[]
   distanceMeters: number
@@ -161,6 +163,7 @@ export interface NamedRoadComparisonRow extends RoadDistanceComparison {
   provinceCode?: string
   provinceName?: string
   provinceStatus?: RoadProvinceStatus
+  provinceCandidates?: string[]
   routeRefs?: string[]
   roadNames: string[]
   historicalTripCount: number | null

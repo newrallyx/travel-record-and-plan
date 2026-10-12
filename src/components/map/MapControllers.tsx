@@ -13,17 +13,17 @@ export function MapZoomController({ onZoomChange }: { onZoomChange: (zoom: numbe
   return null
 }
 
-export function ViewportController({ points }: { points: LatLngExpression[] }) {
+export function ViewportController({ points, animate }: { points: LatLngExpression[]; animate?: boolean }) {
   const map = useMap()
 
   useEffect(() => {
     if (!points.length) return
     if (points.length === 1) {
-      map.setView(points[0], 11)
+      map.setView(points[0], 11, animate === false ? { animate: false } : {})
       return
     }
-    map.fitBounds(L.latLngBounds(points), { padding: [24, 24] })
-  }, [map, points])
+    map.fitBounds(L.latLngBounds(points), { padding: [24, 24], ...(animate === false ? { animate: false } : {}) })
+  }, [map, points, animate])
 
   return null
 }

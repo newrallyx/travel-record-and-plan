@@ -53,6 +53,7 @@ export interface DesktopPhotoLibraryApi {
   savePhoto(photo: LinkedPhotoRecord): Promise<LinkedPhotoRecord>
   savePhotos(photos: LinkedPhotoRecord[]): Promise<LinkedPhotoRecord[]>
   deletePhoto(photoId: string): Promise<void>
+  deletePhotos(photoIds: string[]): Promise<string[]>
   deleteTripData(tripId: string, segmentIds: string[]): Promise<PhotoTripCleanupResult>
   cleanupOrphans(referencedPhotoIds: string[]): Promise<PhotoCleanupResult>
   scanRoot(rootId: string, requestId: string): Promise<PhotoLibraryScanResult>
@@ -77,6 +78,9 @@ export interface DesktopWindowControlApi {
 }
 
 export interface RoadtripDesktopApi {
+  roadbook?: {
+    exportPdf(payload: { html: string; filename: string }): Promise<{ cancelled: boolean; filename?: string }>
+  }
   windowControls: DesktopWindowControlApi
   backup: DesktopBackupApi
   photoLibrary: DesktopPhotoLibraryApi
@@ -110,5 +114,6 @@ export interface DesktopBackupApi {
   }): Promise<DesktopBackupExportResult>
   importFile(): Promise<DesktopBackupImportResult>
   commitImport(importToken: string): Promise<void>
+  commitPhotoCleanup(referencedPhotoIds: string[]): Promise<void>
   cancelImport(importToken: string): Promise<void>
 }

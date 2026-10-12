@@ -10,6 +10,7 @@ declare module 'react-leaflet' {
 
   export const MapContainer: ComponentType<any>
   export const Marker: ComponentType<any>
+  export const Pane: ComponentType<any>
   export const Popup: ComponentType<any>
   export const Tooltip: ComponentType<any>
   export const Polyline: ComponentType<any>

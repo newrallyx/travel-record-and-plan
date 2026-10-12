@@ -130,11 +130,19 @@ function buildManualPart(
   points: readonly CoordPoint[],
   distanceMeters: number,
   distanceSource: ManualRoadAnnotationBuildResult['distanceSource'],
+  base?: RouteRoadPart,
 ): RouteRoadPart {
   const roadClass = annotation.roadClass
   const provinceSensitive = isProvinceSensitiveRoadPart({ roadClass, routeRef: annotation.routeRef })
+  const roadName = annotation.roadName?.trim() || base?.roadName
+  const originalRoadName = annotation.roadName?.trim() ? base?.roadName || base?.tollRoad : undefined
   return {
     roadClass,
+    ...(roadName ? { roadName } : {}),
+    ...(originalRoadName ? { originalRoadName } : {}),
+    ...(base?.tollRoad ? { tollRoad: base.tollRoad } : {}),
+    manualAnnotationId: annotation.id,
+    ...(annotation.concurrentRoads?.length ? { concurrentRoads: annotation.concurrentRoads.map(road => ({ ...road })) } : {}),
     ...(annotation.routeRef ? { routeRef: annotation.routeRef } : {}),
     confidence: 'HIGH',
     source: 'MANUAL',
@@ -174,6 +182,30 @@ export function getManualRoadAnnotationDistanceMeters(
   return Math.max(0, totalDistanceMeters * (end - start))
 }
 
+/** 补回旧标注丢失的名称；只补名称，不重建几何、里程或人工分类。 */
+export function restoreManualRoadAnnotationNames(
+  parts: readonly RouteRoadPart[],
+  baseRoadParts: readonly RouteRoadPart[],
+): RouteRoadPart[] {
+  const baseIntervals = buildBaseIntervals(baseRoadParts)
+  const total = parts.reduce((sum, part) => sum + Math.max(0, part.distanceMeters), 0)
+  if (!baseIntervals.length || total <= 0) return [...parts]
+  let cursor = 0
+  return parts.map((part) => {
+    const start = cursor / total
+    cursor += Math.max(0, part.distanceMeters)
+    const end = cursor / total
+    if (!part.manualAnnotationId || part.roadName || part.tollRoad || end - start <= 1e-9) return part
+    // Old annotations were split at base boundaries. Do not guess a name across multiple base parts.
+    const base = baseIntervals.find(interval => start >= interval.start - 1e-9 && end <= interval.end + 1e-9)?.part
+    return base?.roadName || base?.tollRoad ? {
+      ...part,
+      ...(base.roadName ? { roadName: base.roadName } : {}),
+      ...(base.tollRoad ? { tollRoad: base.tollRoad } : {}),
+    } : part
+  })
+}
+
 /** 以折线比例切分道路分析，所有输出区间互斥且距离和严格保持总里程。 */
 export function buildManualRoadAnnotationParts(input: ManualRoadAnnotationBuildInput): ManualRoadAnnotationBuildResult {
   if (input.points.length < 2) throw new Error('缺少至少两个轨迹点，无法标注道路区间。')
@@ -187,7 +219,8 @@ export function buildManualRoadAnnotationParts(input: ManualRoadAnnotationBuildI
     ? 'RECORDED_ALLOCATION'
     : 'GEOMETRY_ESTIMATE'
   const annotationIntervals = annotations.map((annotation) => annotationInterval(input.points, annotation))
-  const intervals = [...buildBaseIntervals(input.baseRoadParts), ...annotationIntervals]
+  const baseIntervals = buildBaseIntervals(input.baseRoadParts)
+  const intervals = [...baseIntervals, ...annotationIntervals]
   const boundaries = collectBoundaries(intervals)
   const parts: RouteRoadPart[] = []
   let usedDistance = 0
@@ -197,12 +230,12 @@ export function buildManualRoadAnnotationParts(input: ManualRoadAnnotationBuildI
     if (end - start <= 1e-9) continue
     const middle = (start + end) / 2
     const annotation = annotationIntervals.find((candidate) => middle >= candidate.start && middle <= candidate.end)?.annotation
-    const base = buildBaseIntervals(input.baseRoadParts).find((candidate) => middle >= candidate.start && middle <= candidate.end)?.part
+    const base = baseIntervals.find((candidate) => middle >= candidate.start && middle <= candidate.end)?.part
     const isLast = index === boundaries.length - 1
     const distanceMeters = isLast ? Math.max(0, totalDistanceMeters - usedDistance) : totalDistanceMeters * (end - start)
     usedDistance += distanceMeters
     if (annotation) {
-      parts.push(buildManualPart(annotation, start, end, input.points, distanceMeters, distanceSource))
+      parts.push(buildManualPart(annotation, start, end, input.points, distanceMeters, distanceSource, base))
     } else if (base) {
       parts.push(copyPartForInterval(base, start, end, input.points, distanceMeters, distanceSource))
     } else {

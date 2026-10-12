@@ -1,6 +1,6 @@
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
+import { readFile } from 'node:fs/promises'
 import path from 'node:path'
-import { randomUUID } from 'node:crypto'
+import { writeFileAtomically } from '../backend/src/atomicFile.js'
 
 export const PHOTO_LIBRARY_SCHEMA = 'roadtrip-photo-library'
 export const PHOTO_LIBRARY_VERSION = 1
@@ -161,10 +161,7 @@ async function readState(filePath) {
 }
 
 async function writeState(filePath, state) {
-  await mkdir(path.dirname(filePath), { recursive: true })
-  const tempPath = `${filePath}.${process.pid}.${randomUUID()}.tmp`
-  await writeFile(tempPath, `${JSON.stringify(state, null, 2)}\n`, 'utf8')
-  await rename(tempPath, filePath)
+  await writeFileAtomically(filePath, `${JSON.stringify(state, null, 2)}\n`, 'utf8')
 }
 
 export class PhotoMetadataStore {
@@ -183,8 +180,12 @@ export class PhotoMetadataStore {
   }
 
   async read() {
+    return this.select((state) => state)
+  }
+
+  async select(selector) {
     await this.writeQueue
-    return clone(await this.loadState())
+    return clone(selector(await this.loadState()))
   }
 
   async replaceAll(roots, photos) {
@@ -211,20 +212,20 @@ export class PhotoMetadataStore {
   }
 
   async listRoots() {
-    return (await this.read()).roots
+    return this.select((state) => state.roots)
   }
 
   async getRoot(rootId) {
-    return (await this.read()).roots.find((root) => root.id === rootId) ?? null
+    return this.select((state) => state.roots.find((root) => root.id === rootId) ?? null)
   }
 
   async listPhotosByRoot(rootId) {
     const normalizedRootId = requireNonEmptyString(rootId, 'Photo library root id')
-    return (await this.read()).photos.filter((photo) => photo.libraryRootId === normalizedRootId)
+    return this.select((state) => state.photos.filter((photo) => photo.libraryRootId === normalizedRootId))
   }
 
   async listPhotos() {
-    return (await this.read()).photos
+    return this.select((state) => state.photos)
   }
 
   async saveRoot(rootValue) {
@@ -288,11 +289,11 @@ export class PhotoMetadataStore {
 
   async listPhotosBySegment(segmentId) {
     const normalizedSegmentId = requireNonEmptyString(segmentId, 'Segment id')
-    return (await this.read()).photos.filter((photo) => photo.segmentId === normalizedSegmentId)
+    return this.select((state) => state.photos.filter((photo) => photo.segmentId === normalizedSegmentId))
   }
 
   async getPhoto(photoId) {
-    return (await this.read()).photos.find((photo) => photo.id === photoId) ?? null
+    return this.select((state) => state.photos.find((photo) => photo.id === photoId) ?? null)
   }
 
   async savePhoto(photoValue) {

@@ -1,4 +1,5 @@
 import type { RoadAnalysisMeta, RouteRoadPart } from '../../types/roadStatistics.ts'
+import type { WaypointRouteEstimate } from '../../types/trip.ts'
 
 export interface AMapTip {
   id: string
@@ -41,6 +42,7 @@ export interface DrivingRequestPoint {
 }
 
 export interface DrivingRouteResult {
+  waypointEstimates?: WaypointRouteEstimate[]
   polyline: Array<[number, number]>
   roadParts?: RouteRoadPart[]
   roadAnalysis?: RoadAnalysisMeta
@@ -62,6 +64,7 @@ export interface AMapServiceError {
 }
 
 export interface RouteApiResult {
+  waypointEstimates?: WaypointRouteEstimate[]
   polyline: Array<[number, number]>
   roadParts?: RouteRoadPart[]
   distanceText: string

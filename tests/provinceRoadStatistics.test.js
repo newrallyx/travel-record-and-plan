@@ -12,6 +12,9 @@ import { buildResolvedRoutePatch } from '../src/components/map/resolvedRoutePatc
 import { persistResolvedRoutePatches } from '../src/hooks/resolvedRoutePatches.ts'
 import { getSegmentRouteCache } from '../src/services/routeCacheDb.ts'
 import { getRoadAnalysisFreshness } from '../src/utils/routeBuildKey.ts'
+import { summarizeRoadStatisticsComparison, selectNamedRoadRows } from '../src/utils/roadStatisticsComparison.ts'
+import { buildRoadArchive } from '../src/utils/travelRetrospective.ts'
+import { buildRoadFootprint, roadFootprintKey } from '../src/utils/roadFootprint.ts'
 
 beforeEach(() => {
   globalThis.indexedDB = new IDBFactory()
@@ -83,6 +86,58 @@ function part(roadClass, distanceMeters, routeRef, provinceCode, roadName = rout
       provinceSource: 'UNKNOWN',
       provinceStatus: 'pending',
     } : {}),
+  }
+}
+
+for (const [roadClass, routeRef] of [['PROVINCIAL_ROAD', undefined], ['PROVINCIAL_ROAD', 'S101'], ['EXPRESSWAY', 'S12']]) {
+  for (const sameSegment of [false, true]) {
+    test(`pending candidate groups preserve statistics, archive and footprint: ${roadClass}/${routeRef ?? 'unnumbered'}, same segment=${sameSegment}`, () => {
+      const pending = (distance, name, candidates, x) => ({
+        ...part(roadClass, distance, routeRef, undefined, name),
+        provinceStatus: 'pending', provinceCandidates: candidates,
+        polyline: [[34, x], [34.1, x + 0.1]],
+      })
+      const a = pending(100000, '甲道路', ['620000', '610000', '620000'], 108)
+      const b = pending(200000, '乙道路', ['610000', '510000'], 110)
+      const repeated = pending(50000, '甲道路别名', ['610000', '620000'], 112)
+      const unknown = pending(25000, '无候选道路', undefined, 114)
+      const confirmed = { ...pending(75000, '已确认道路', ['610000', '620000'], 116),
+        provinceCode: '610000', provinceStatus: 'confirmed' }
+      const parts = [a, b, repeated, unknown, confirmed]
+      const segments = sameSegment ? [segment('combined')] : parts.map((_, i) => segment(`separate-${i}`))
+      const caches = sameSegment ? [cacheFor(segments[0], parts)] : segments.map((s, i) => cacheFor(s, [parts[i]]))
+      const trips = [trip('pending-groups', segments)]
+      const comparison = summarizeRoadStatisticsComparison(trips, trips, caches)
+      const archive = buildRoadArchive(trips, caches)
+      const expected = [[a, 150000, 2], [b, 200000, 1], [unknown, 25000, 1], [confirmed, 75000, 1]]
+      assert.equal(comparison.namedRoads.length, 4)
+      assert.equal(comparison.current.roadClassDistance.analyzedDistanceMeters, 450000)
+      assert.equal(comparison.namedRoads.reduce((sum, row) => sum + row.currentDistanceMeters, 0), 450000)
+      for (const [p, distance, count] of expected) {
+        const key = roadFootprintKey(p)
+        const row = comparison.namedRoads.find(row => row.key === key)
+        assert.ok(row)
+        assert.equal(row.currentDistanceMeters, distance)
+        assert.equal(row.historicalDistanceMeters, distance)
+        assert.equal(row.currentRoadPartCount, count)
+        assert.equal(row.historicalTripCount, 1)
+        assert.equal(archive.get(key).reduce((sum, visit) => sum + visit.distanceMeters, 0), distance)
+        assert.equal(archive.get(key).length, sameSegment ? 1 : count)
+        const footprint = buildRoadFootprint(trips, caches, key)
+        assert.equal(footprint.records.length, sameSegment ? 1 : count)
+        const selectedParts = footprint.tracks.flatMap(track => track.roadParts)
+        assert.equal(selectedParts.length, count)
+        assert.ok(selectedParts.every(part => roadFootprintKey(part) === key))
+      }
+      const rowA = comparison.namedRoads.find(row => row.key === roadFootprintKey(a))
+      assert.deepEqual(rowA.provinceCandidates, ['610000', '620000'])
+      assert.deepEqual(new Set(rowA.roadNames), new Set(['甲道路', '甲道路别名']))
+      assert.equal(selectNamedRoadRows(comparison.namedRoads, { query: '乙道路' })[0].key, roadFootprintKey(b))
+      // A filtered scope must match the same historical group, never another pending group.
+      const filtered = summarizeRoadStatisticsComparison([trip('pending-groups', [segments[0]])], trips, caches)
+      assert.equal(filtered.namedRoads.find(row => row.key === roadFootprintKey(a)).historicalDistanceMeters, 150000)
+      assert.equal(filtered.namedRoads.find(row => row.key === roadFootprintKey(b)).currentDistanceMeters, sameSegment ? 200000 : 0)
+    })
   }
 }
 

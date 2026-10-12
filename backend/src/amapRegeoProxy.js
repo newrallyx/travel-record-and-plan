@@ -1,22 +1,7 @@
-function readOptionalParam(url, key) {
-  const value = url.searchParams.get(key)
-  if (!value) return null
-  const trimmed = value.trim()
-  return trimmed ? trimmed : null
-}
+import { readOptionalParam, requestUpstreamJson } from './upstreamRequest.js'
 
 function isSafeLocation(location) {
   return /^-?\d+(\.\d+)?,-?\d+(\.\d+)?$/.test(location)
-}
-
-async function fetchWithTimeout(targetUrl, timeoutMs) {
-  const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), timeoutMs)
-  try {
-    return await fetch(targetUrl, { signal: controller.signal })
-  } finally {
-    clearTimeout(timeout)
-  }
 }
 
 export function createRegeoProxyHandler({ amapWebApiKey, getAmapWebApiKey } = {}) {
@@ -46,8 +31,7 @@ export function createRegeoProxyHandler({ amapWebApiKey, getAmapWebApiKey } = {}
     targetUrl.searchParams.set('output', 'json')
 
     try {
-      const upstream = await fetchWithTimeout(targetUrl.toString(), 5000)
-      const data = await upstream.json()
+      const { response: upstream, data } = await requestUpstreamJson(targetUrl.toString())
       if (!upstream.ok) {
         res.status(upstream.status).json({ ok: false, message: 'regeo upstream error', detail: data })
         return
@@ -55,7 +39,7 @@ export function createRegeoProxyHandler({ amapWebApiKey, getAmapWebApiKey } = {}
       res.status(200).json({ ok: true, data })
     } catch (error) {
       const message = error?.name === 'AbortError' ? 'regeo timeout(5s)' : 'regeo proxy failed'
-      res.status(502).json({ ok: false, message })
+      res.status(502).json({ ok: false, code: error?.name === 'AbortError' ? 'UPSTREAM_TIMEOUT' : 'UPSTREAM_FAILED', message })
     }
   }
 }

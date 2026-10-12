@@ -13,11 +13,15 @@ import { PhotoThumbnailCache } from './photoThumbnailCache.mjs'
 import { commitPhotoContentRefresh } from './photoContentStore.mjs'
 import {
   commitPreparedDesktopBackup,
+  commitPhotoCleanup,
+  deletePhotoRecords,
   prepareDesktopBackupZip,
   readTripBackupJsonFile,
   writeDesktopBackupZip,
 } from './photoBackupArchive.mjs'
 import { isAllowedExternalUrl, resolveDesktopPort, resolveDesktopRuntimeProfile } from './runtimeProfile.mjs'
+import { saveRoadbookPdf } from './roadbookExport.mjs'
+import { createPhotoOperationQueue, PendingBackupImports } from './photoOperations.mjs'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -32,7 +36,8 @@ let server = null
 let photoMetadataStore = null
 let photoThumbnailCache = null
 const authorizedPhotoLibraryRoots = new Map()
-const pendingBackupImports = new Map()
+const pendingBackupImports = new PendingBackupImports()
+const photoOperations = createPhotoOperationQueue()
 const activePhotoLibraryScans = new Map()
 
 function getDesktopPort() {
@@ -120,7 +125,13 @@ function photoLibraryPathsOverlap(leftPath, rightPath) {
 }
 
 function registerPhotoLibraryIpc() {
-  ipcMain.handle('photo-library:choose-root', async (event, payload) => {
+  // Scan cancellation must remain responsive while a scan is running.
+  const handlePhotoIpc = (channel, handler) => ipcMain.handle(channel, (event, payload) => (
+    channel === 'photo-library:scan-root' || channel === 'photo-library:cancel-scan'
+      ? handler(event, payload)
+      : photoOperations.run(() => handler(event, payload))
+  ))
+  handlePhotoIpc('photo-library:choose-root', async (event, payload) => {
     assertTrustedPhotoLibrarySender(event)
     const tripId = typeof payload?.tripId === 'string' ? payload.tripId.trim() : ''
     if (!tripId) throw new Error('A trip must be selected before adding a photo library.')
@@ -173,12 +184,12 @@ function registerPhotoLibraryIpc() {
     return savedRoot
   })
 
-  ipcMain.handle('photo-library:list-roots', async (event) => {
+  handlePhotoIpc('photo-library:list-roots', async (event) => {
     assertTrustedPhotoLibrarySender(event)
     return getPhotoMetadataStore().listRoots()
   })
 
-  ipcMain.handle('photo-library:get-root-summary', async (event, payload) => {
+  handlePhotoIpc('photo-library:get-root-summary', async (event, payload) => {
     assertTrustedPhotoLibrarySender(event)
     const root = await getPhotoLibraryRootOrThrow(payload?.rootId)
     const photos = await getPhotoMetadataStore().listPhotosByRoot(root.id)
@@ -191,12 +202,12 @@ function registerPhotoLibraryIpc() {
     return { root, photoCount: photos.length, available }
   })
 
-  ipcMain.handle('photo-library:get-root', async (event, payload) => {
+  handlePhotoIpc('photo-library:get-root', async (event, payload) => {
     assertTrustedPhotoLibrarySender(event)
     return getPhotoMetadataStore().getRoot(payload?.rootId)
   })
 
-  ipcMain.handle('photo-library:update-root', async (event, payload) => {
+  handlePhotoIpc('photo-library:update-root', async (event, payload) => {
     assertTrustedPhotoLibrarySender(event)
     const existingRoot = await getPhotoMetadataStore().getRoot(payload?.rootId)
     if (!existingRoot) throw new Error('Photo library root was not found.')
@@ -213,44 +224,51 @@ function registerPhotoLibraryIpc() {
     return updatedRoot
   })
 
-  ipcMain.handle('photo-library:delete-root', async (event, payload) => {
+  handlePhotoIpc('photo-library:delete-root', async (event, payload) => {
     assertTrustedPhotoLibrarySender(event)
     await getPhotoMetadataStore().deleteRoot(payload?.rootId)
     authorizedPhotoLibraryRoots.delete(payload?.rootId)
   })
 
-  ipcMain.handle('photo-library:list-photos-by-segment', async (event, payload) => {
+  handlePhotoIpc('photo-library:list-photos-by-segment', async (event, payload) => {
     assertTrustedPhotoLibrarySender(event)
     return getPhotoMetadataStore().listPhotosBySegment(payload?.segmentId)
   })
 
-  ipcMain.handle('photo-library:list-photos', async (event) => {
+  handlePhotoIpc('photo-library:list-photos', async (event) => {
     assertTrustedPhotoLibrarySender(event)
     return getPhotoMetadataStore().listPhotos()
   })
 
-  ipcMain.handle('photo-library:get-photo', async (event, payload) => {
+  handlePhotoIpc('photo-library:get-photo', async (event, payload) => {
     assertTrustedPhotoLibrarySender(event)
     return getPhotoMetadataStore().getPhoto(payload?.photoId)
   })
 
-  ipcMain.handle('photo-library:save-photo', async (event, payload) => {
+  handlePhotoIpc('photo-library:save-photo', async (event, payload) => {
     assertTrustedPhotoLibrarySender(event)
     return getPhotoMetadataStore().savePhoto(payload?.photo)
   })
 
-  ipcMain.handle('photo-library:save-photos', async (event, payload) => {
+  handlePhotoIpc('photo-library:save-photos', async (event, payload) => {
     assertTrustedPhotoLibrarySender(event)
     return getPhotoMetadataStore().savePhotos(payload?.photos)
   })
 
-  ipcMain.handle('photo-library:delete-photo', async (event, payload) => {
+  handlePhotoIpc('photo-library:delete-photo', async (event, payload) => {
     assertTrustedPhotoLibrarySender(event)
-    await getPhotoThumbnailCache().delete(payload?.photoId)
-    await getPhotoMetadataStore().deletePhoto(payload?.photoId)
+    await deletePhotoRecords({ photoIds: [...normalizeReferencedPhotoIds([payload?.photoId])],
+      metadataStore: getPhotoMetadataStore(), thumbnailCache: getPhotoThumbnailCache() })
   })
 
-  ipcMain.handle('photo-library:delete-trip-data', async (event, payload) => {
+  handlePhotoIpc('photo-library:delete-photos', async (event, payload) => {
+    assertTrustedPhotoLibrarySender(event)
+    const result = await deletePhotoRecords({ photoIds: [...normalizeReferencedPhotoIds(payload?.photoIds)],
+      metadataStore: getPhotoMetadataStore(), thumbnailCache: getPhotoThumbnailCache() })
+    return result.deletedPhotoIds
+  })
+
+  handlePhotoIpc('photo-library:delete-trip-data', async (event, payload) => {
     assertTrustedPhotoLibrarySender(event)
     const tripId = typeof payload?.tripId === 'string' ? payload.tripId.trim() : ''
     if (!tripId) throw new Error('Trip id must be a non-empty string.')
@@ -271,18 +289,22 @@ function registerPhotoLibraryIpc() {
         deletedRootIdSet.has(photo.libraryRootId) || deletedSegmentIdSet.has(photo.segmentId)
       ))
       .map((photo) => photo.id)
-    await Promise.all(plannedPhotoIds.map((photoId) => getPhotoThumbnailCache().delete(photoId)))
-
-    const result = await getPhotoMetadataStore().deleteTripData(tripId, segmentIds)
-    const plannedPhotoIdSet = new Set(plannedPhotoIds)
-    await Promise.all(result.deletedPhotoIds
-      .filter((photoId) => !plannedPhotoIdSet.has(photoId))
-      .map((photoId) => getPhotoThumbnailCache().delete(photoId)))
+    const deletion = await getPhotoThumbnailCache().prepareDeletion(plannedPhotoIds)
+    let result
+    try {
+      result = await getPhotoMetadataStore().deleteTripData(tripId, segmentIds)
+    } catch (error) {
+      try { await deletion.rollback() } catch (rollbackError) {
+        throw new AggregateError([error, rollbackError], 'Trip photo deletion rollback was incomplete.')
+      }
+      throw error
+    }
+    await deletion.finalize()
     for (const rootId of result.deletedRootIds) authorizedPhotoLibraryRoots.delete(rootId)
     return result
   })
 
-  ipcMain.handle('photo-library:cleanup-orphans', async (event, payload) => {
+  handlePhotoIpc('photo-library:cleanup-orphans', async (event, payload) => {
     assertTrustedPhotoLibrarySender(event)
     const referencedPhotoIds = normalizeReferencedPhotoIds(payload?.referencedPhotoIds)
     const allPhotos = await getPhotoMetadataStore().listPhotos()
@@ -294,20 +316,21 @@ function registerPhotoLibraryIpc() {
       .map((photo) => photo.id)
 
     const remainingPhotoIds = allPhotos
-      .filter((photo) => !orphanPhotoIds.includes(photo.id))
+      .filter((photo) => referencedPhotoIds.has(photo.id))
       .map((photo) => photo.id)
+    const deletion = await deletePhotoRecords({ photoIds: orphanPhotoIds,
+      metadataStore: getPhotoMetadataStore(), thumbnailCache: getPhotoThumbnailCache() })
     const thumbnailCleanup = await getPhotoThumbnailCache().cleanup(remainingPhotoIds)
-    const deletedMetadataPhotoIds = await getPhotoMetadataStore().deletePhotos(orphanPhotoIds)
 
     return {
-      deletedMetadataPhotoIds,
-      deletedThumbnailPhotoIds: thumbnailCleanup.deletedThumbnailIds,
+      deletedMetadataPhotoIds: deletion.deletedPhotoIds,
+      deletedThumbnailPhotoIds: [...new Set([...deletion.deletedThumbnailIds, ...thumbnailCleanup.deletedThumbnailIds])],
       deletedTempFileCount: thumbnailCleanup.deletedTempFileCount,
       missingReferencedPhotoIds,
     }
   })
 
-  ipcMain.handle('photo-library:check-photo-availability', async (event, payload) => {
+  handlePhotoIpc('photo-library:check-photo-availability', async (event, payload) => {
     assertTrustedPhotoLibrarySender(event)
     const photo = await getPhotoMetadataStore().getPhoto(payload?.photoId)
     if (!photo) throw new Error('Linked photo was not found.')
@@ -333,24 +356,24 @@ function registerPhotoLibraryIpc() {
     }
   })
 
-  ipcMain.handle('photo-library:read-thumbnail', async (event, payload) => {
+  handlePhotoIpc('photo-library:read-thumbnail', async (event, payload) => {
     assertTrustedPhotoLibrarySender(event)
     const data = await getPhotoThumbnailCache().read(payload?.photoId)
     return data ? { data, mimeType: 'image/webp' } : null
   })
 
-  ipcMain.handle('photo-library:save-thumbnail', async (event, payload) => {
+  handlePhotoIpc('photo-library:save-thumbnail', async (event, payload) => {
     assertTrustedPhotoLibrarySender(event)
     if (payload?.mimeType !== 'image/webp') throw new Error('Thumbnail must use the image/webp MIME type.')
     return getPhotoThumbnailCache().save(payload?.photoId, payload?.data)
   })
 
-  ipcMain.handle('photo-library:delete-thumbnail', async (event, payload) => {
+  handlePhotoIpc('photo-library:delete-thumbnail', async (event, payload) => {
     assertTrustedPhotoLibrarySender(event)
     await getPhotoThumbnailCache().delete(payload?.photoId)
   })
 
-  ipcMain.handle('photo-library:scan-root', async (event, payload) => {
+  handlePhotoIpc('photo-library:scan-root', async (event, payload) => {
     assertTrustedPhotoLibrarySender(event)
     const root = await getPhotoLibraryRootOrThrow(payload?.rootId)
     const requestId = typeof payload?.requestId === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(payload.requestId)
@@ -387,13 +410,13 @@ function registerPhotoLibraryIpc() {
     }
   })
 
-  ipcMain.handle('photo-library:cancel-scan', async (event, payload) => {
+  handlePhotoIpc('photo-library:cancel-scan', async (event, payload) => {
     assertTrustedPhotoLibrarySender(event)
     const requestId = typeof payload?.requestId === 'string' ? payload.requestId : ''
     activePhotoLibraryScans.get(requestId)?.abort()
   })
 
-  ipcMain.handle('photo-library:relink-root', async (event, payload) => {
+  handlePhotoIpc('photo-library:relink-root', async (event, payload) => {
     assertTrustedPhotoLibrarySender(event)
     const root = await getPhotoLibraryRootOrThrow(payload?.rootId)
     const options = {
@@ -418,7 +441,7 @@ function registerPhotoLibraryIpc() {
     return updatedRoot
   })
 
-  ipcMain.handle('photo-library:repair-photo-path', async (event, payload) => {
+  handlePhotoIpc('photo-library:repair-photo-path', async (event, payload) => {
     assertTrustedPhotoLibrarySender(event)
     const photo = await getPhotoMetadataStore().getPhoto(payload?.photoId)
     if (!photo) throw new Error('Linked photo was not found.')
@@ -438,7 +461,7 @@ function registerPhotoLibraryIpc() {
     })
   })
 
-  ipcMain.handle('photo-library:choose-replacement', async (event, payload) => {
+  handlePhotoIpc('photo-library:choose-replacement', async (event, payload) => {
     assertTrustedPhotoLibrarySender(event)
     const photo = await getPhotoMetadataStore().getPhoto(payload?.photoId)
     if (!photo) throw new Error('Linked photo was not found.')
@@ -460,7 +483,7 @@ function registerPhotoLibraryIpc() {
     return relativePath
   })
 
-  ipcMain.handle('photo-library:refresh-photo-content', async (event, payload) => {
+  handlePhotoIpc('photo-library:refresh-photo-content', async (event, payload) => {
     assertTrustedPhotoLibrarySender(event)
     const photo = await getPhotoMetadataStore().getPhoto(payload?.photoId)
     if (!photo) throw new Error('Linked photo was not found.')
@@ -476,7 +499,7 @@ function registerPhotoLibraryIpc() {
     })
   })
 
-  ipcMain.handle('photo-library:read-photo', async (event, payload) => {
+  handlePhotoIpc('photo-library:read-photo', async (event, payload) => {
     assertTrustedPhotoLibrarySender(event)
     const rootId = typeof payload?.rootId === 'string' ? payload.rootId : ''
     const relativePath = typeof payload?.relativePath === 'string' ? payload.relativePath : ''
@@ -505,18 +528,19 @@ function registerDesktopBackupIpc() {
       : await dialog.showSaveDialog(options)
     if (result.canceled || !result.filePath) return { cancelled: true }
 
-    const summary = await writeDesktopBackupZip({
+    const summary = await photoOperations.run(() => writeDesktopBackupZip({
       zipPath: result.filePath,
       tripBackupJson: payload?.tripBackupJson,
       referencedPhotoIds: normalizeReferencedPhotoIds(payload?.referencedPhotoIds),
       metadataStore: getPhotoMetadataStore(),
       thumbnailCache: getPhotoThumbnailCache(),
-    })
+    }))
     return { cancelled: false, ...summary }
   })
 
   ipcMain.handle('desktop-backup:import-file', async (event) => {
     assertTrustedPhotoLibrarySender(event)
+    const importGeneration = pendingBackupImports.generation
     const options = {
       title: '导入备份（ZIP 或 JSON）',
       properties: ['openFile'],
@@ -550,8 +574,12 @@ function registerDesktopBackupIpc() {
       tempParentPath: app.getPath('temp'),
       thumbnailCache: getPhotoThumbnailCache(),
     })
-    const importToken = randomUUID()
-    pendingBackupImports.set(importToken, prepared)
+    let importToken
+    try {
+      if (event.sender.isDestroyed()) throw new Error('备份准备已取消。')
+      importToken = pendingBackupImports.add(prepared, event.sender.id, importGeneration)
+    }
+    catch (error) { await prepared.dispose(); throw error }
     return {
       cancelled: false,
       format: 'zip',
@@ -567,25 +595,30 @@ function registerDesktopBackupIpc() {
   ipcMain.handle('desktop-backup:commit-import', async (event, payload) => {
     assertTrustedPhotoLibrarySender(event)
     const importToken = typeof payload?.importToken === 'string' ? payload.importToken : ''
-    const prepared = pendingBackupImports.get(importToken)
-    if (!prepared) throw new Error('Prepared backup import was not found or has expired.')
-    await commitPreparedDesktopBackup({
-      prepared,
-      metadataStore: getPhotoMetadataStore(),
-      thumbnailCache: getPhotoThumbnailCache(),
-    })
-    pendingBackupImports.delete(importToken)
+    const prepared = await pendingBackupImports.take(importToken, event.sender.id)
     try {
-      await hydrateAuthorizedPhotoLibraryRoots()
-    } catch (error) {
-      console.error('[backup] Backup restored, but photo root authorization refresh failed.', error)
+      await photoOperations.run(async () => {
+        await commitPreparedDesktopBackup({ prepared,
+          metadataStore: getPhotoMetadataStore(), thumbnailCache: getPhotoThumbnailCache() })
+        authorizedPhotoLibraryRoots.clear()
+        prepared.roots.forEach((root) => authorizedPhotoLibraryRoots.set(root.id, root))
+      })
+    } finally {
+      await prepared.dispose().catch((error) => console.warn('[backup] Import staging cleanup failed.', { code: error?.code }))
     }
+  })
+
+  ipcMain.handle('desktop-backup:commit-photo-cleanup', async (event, payload) => {
+    assertTrustedPhotoLibrarySender(event)
+    const referencedPhotoIds = normalizeReferencedPhotoIds(payload?.referencedPhotoIds)
+    await photoOperations.run(() => commitPhotoCleanup({ referencedPhotoIds,
+      metadataStore: getPhotoMetadataStore(), thumbnailCache: getPhotoThumbnailCache() }))
   })
 
   ipcMain.handle('desktop-backup:cancel-import', async (event, payload) => {
     assertTrustedPhotoLibrarySender(event)
     const importToken = typeof payload?.importToken === 'string' ? payload.importToken : ''
-    pendingBackupImports.delete(importToken)
+    await pendingBackupImports.cancel(importToken, event.sender.id)
   })
 }
 
@@ -647,6 +680,11 @@ async function createMainWindow() {
   mainWindow.once('ready-to-show', () => {
     mainWindow?.show()
   })
+  mainWindow.on('closed', () => { void pendingBackupImports.clear() })
+  mainWindow.webContents.on('render-process-gone', () => { void pendingBackupImports.clear() })
+  mainWindow.webContents.on('did-start-navigation', (_event, _url, _inPlace, isMainFrame) => {
+    if (isMainFrame) void pendingBackupImports.clear()
+  })
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (isAllowedExternalUrl(url)) {
@@ -670,6 +708,14 @@ if (!gotSingleInstanceLock) {
 } else {
   registerPhotoLibraryIpc()
   registerDesktopBackupIpc()
+  let exportingRoadbook = false
+  ipcMain.handle('roadbook:export-pdf', async (event, payload) => {
+    assertTrustedPhotoLibrarySender(event)
+    if (exportingRoadbook) throw new Error('已有路书正在导出，请稍后重试。')
+    exportingRoadbook = true
+    try { return await saveRoadbookPdf({ BrowserWindow, dialog, parent: mainWindow, payload }) }
+    finally { exportingRoadbook = false }
+  })
 
   app.on('second-instance', () => {
     if (!mainWindow) return
@@ -704,6 +750,14 @@ app.on('window-all-closed', () => {
   }
 })
 
-app.on('before-quit', () => {
-  server?.close()
+let finishingQuit = false
+app.on('before-quit', (event) => {
+  if (finishingQuit) return
+  event.preventDefault()
+  for (const controller of activePhotoLibraryScans.values()) controller.abort()
+  void photoOperations.idle().then(() => pendingBackupImports.clear()).finally(() => {
+    finishingQuit = true
+    server?.close()
+    app.quit()
+  })
 })

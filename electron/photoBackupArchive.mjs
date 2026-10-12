@@ -3,6 +3,9 @@ import { mkdtemp, readFile, rm, stat } from 'node:fs/promises'
 import path from 'node:path'
 import archiver from 'archiver'
 import extractZip from 'extract-zip'
+import { finished } from 'node:stream/promises'
+import { replaceFileAtomically } from '../backend/src/atomicFile.js'
+import { validateThumbnailFile } from './photoThumbnailCache.mjs'
 import {
   normalizePhotoLibraryState,
   PHOTO_LIBRARY_SCHEMA,
@@ -76,12 +79,15 @@ function createArchive(zipPath) {
     output.on('close', resolve)
     output.on('error', reject)
     archive.on('error', reject)
-    archive.on('warning', (error) => {
-      if (error?.code !== 'ENOENT') reject(error)
-    })
+    archive.on('warning', reject)
   })
+  completed.catch(() => {})
   archive.pipe(output)
-  return { archive, completed }
+  return { archive, completed, abort: async () => {
+    archive.abort()
+    output.destroy()
+    await finished(output).catch(() => {})
+  } }
 }
 
 export async function writeDesktopBackupZip({
@@ -108,9 +114,9 @@ export async function writeDesktopBackupZip({
   const exportedPhotos = []
 
   for (const photo of selectedPhotos) {
-    const thumbnail = await thumbnailCache.read(photo.id)
+    const thumbnail = await thumbnailFileEntry(thumbnailCache, photo.id)
     if (thumbnail) {
-      thumbnailEntries.push({ photoId: photo.id, data: thumbnail })
+      thumbnailEntries.push(thumbnail)
       exportedPhotos.push({ ...photo, thumbnailCacheKey: thumbnailCache.getCacheKey(photo.id) })
     } else {
       exportedPhotos.push({ ...photo, thumbnailCacheKey: undefined })
@@ -129,20 +135,18 @@ export async function writeDesktopBackupZip({
       thumbnailCount: thumbnailEntries.length,
     },
   }
-  const { archive, completed } = createArchive(zipPath)
-  archive.append(`${JSON.stringify(manifest, null, 2)}\n`, { name: 'manifest.json' })
-  archive.append(tripBackupJson, { name: 'trip-backup.json' })
-  archive.append(`${JSON.stringify(photoMetadata, null, 2)}\n`, { name: 'photos/metadata.json' })
-  thumbnailEntries.forEach((entry) => {
-    archive.append(entry.data, { name: `photos/thumbnails/${thumbnailCache.getCacheKey(entry.photoId)}` })
+  await replaceFileAtomically(zipPath, async (tempPath) => {
+    const { archive, completed, abort } = createArchive(tempPath)
+    try {
+      archive.append(`${JSON.stringify(manifest, null, 2)}\n`, { name: 'manifest.json' })
+      archive.append(tripBackupJson, { name: 'trip-backup.json' })
+      archive.append(`${JSON.stringify(photoMetadata, null, 2)}\n`, { name: 'photos/metadata.json' })
+      for (const entry of thumbnailEntries) {
+        archive.file(entry.filePath, { name: `photos/thumbnails/${thumbnailCache.getCacheKey(entry.photoId)}` })
+      }
+      await Promise.all([archive.finalize(), completed])
+    } catch (error) { await abort(); throw error }
   })
-  try {
-    await archive.finalize()
-    await completed
-  } catch (error) {
-    await rm(zipPath, { force: true })
-    throw error
-  }
 
   return {
     filename: path.basename(zipPath),
@@ -221,15 +225,12 @@ export async function prepareDesktopBackupZip({
       }
       let thumbnail = null
       try {
-        thumbnail = await readFileLimited(
-          path.join(extractionPath, 'photos', 'thumbnails', expectedCacheKey),
-          5 * 1024 * 1024,
-        )
+        thumbnail = await validateThumbnailFile(path.join(extractionPath, 'photos', 'thumbnails', expectedCacheKey))
       } catch (error) {
         if (error?.code !== 'ENOENT') throw error
       }
       if (thumbnail) {
-        thumbnailEntries.push({ photoId: photo.id, data: thumbnail })
+        thumbnailEntries.push({ photoId: photo.id, filePath: thumbnail.filePath })
         restoredPhotos.push({ ...photo, thumbnailCacheKey: expectedCacheKey })
       } else {
         restoredPhotos.push({ ...photo, thumbnailCacheKey: undefined })
@@ -245,20 +246,42 @@ export async function prepareDesktopBackupZip({
       roots: normalizedState.roots,
       photos: restoredPhotos,
       thumbnailEntries,
+      dispose: () => rm(extractionPath, { recursive: true, force: true }),
     }
-  } finally {
+  } catch (error) {
     await rm(extractionPath, { recursive: true, force: true })
+    throw error
   }
 }
 
-async function readCurrentThumbnailEntries(metadataStore, thumbnailCache) {
+async function thumbnailFileEntry(thumbnailCache, photoId) {
+  try {
+    const { filePath } = await validateThumbnailFile(thumbnailCache.getCachePath(photoId))
+    return { photoId, filePath }
+  } catch (error) { if (error?.code === 'ENOENT') return null; throw error }
+}
+
+/** Legacy JSON cleanup is committed only inside the restore transaction. */
+export async function commitPhotoCleanup({ referencedPhotoIds, metadataStore, thumbnailCache }) {
+  const references = new Set(referencedPhotoIds)
   const state = await metadataStore.read()
-  const entries = []
-  for (const photo of state.photos) {
-    const data = await thumbnailCache.read(photo.id)
-    if (data) entries.push({ photoId: photo.id, data })
+  const orphanIds = state.photos.filter((photo) => !references.has(photo.id)).map((photo) => photo.id)
+  return deletePhotoRecords({ photoIds: orphanIds, metadataStore, thumbnailCache })
+}
+
+export async function deletePhotoRecords({ photoIds, metadataStore, thumbnailCache }) {
+  if (!photoIds.length) return { deletedPhotoIds: [], deletedThumbnailIds: [] }
+  const deletion = await thumbnailCache.prepareDeletion(photoIds)
+  try {
+    const deleted = await metadataStore.deletePhotos(photoIds)
+    await deletion.finalize()
+    return { deletedPhotoIds: deleted, deletedThumbnailIds: deletion.deletedThumbnailIds }
+  } catch (error) {
+    try { await deletion.rollback() } catch (rollbackError) {
+      throw new AggregateError([error, rollbackError], 'Photo deletion failed and rollback was incomplete.')
+    }
+    throw error
   }
-  return { state, entries }
 }
 
 export async function commitPreparedDesktopBackup({
@@ -269,23 +292,16 @@ export async function commitPreparedDesktopBackup({
   if (!prepared || !Array.isArray(prepared.roots) || !Array.isArray(prepared.photos)) {
     throw new Error('Prepared desktop backup is invalid.')
   }
-  const previous = await readCurrentThumbnailEntries(metadataStore, thumbnailCache)
-  let thumbnailsReplaced = false
+  const previous = await metadataStore.read()
+  const replacement = await thumbnailCache.prepareReplacement(prepared.thumbnailEntries)
   try {
-    await thumbnailCache.replaceAll(prepared.thumbnailEntries)
-    thumbnailsReplaced = true
+    await replacement.commit()
     await metadataStore.replaceAll(prepared.roots, prepared.photos)
   } catch (error) {
     const rollbackErrors = []
-    if (thumbnailsReplaced) {
-      try {
-        await thumbnailCache.replaceAll(previous.entries)
-      } catch (rollbackError) {
-        rollbackErrors.push(rollbackError)
-      }
-    }
+    try { await replacement.rollback() } catch (rollbackError) { rollbackErrors.push(rollbackError) }
     try {
-      await metadataStore.replaceAll(previous.state.roots, previous.state.photos)
+      await metadataStore.replaceAll(previous.roots, previous.photos)
     } catch (rollbackError) {
       rollbackErrors.push(rollbackError)
     }
@@ -294,6 +310,7 @@ export async function commitPreparedDesktopBackup({
     }
     throw error
   }
+  await replacement.finalize()
 }
 
 export async function restoreDesktopBackupZip({
@@ -303,12 +320,14 @@ export async function restoreDesktopBackupZip({
   thumbnailCache,
 }) {
   const prepared = await prepareDesktopBackupZip({ zipPath, tempParentPath, thumbnailCache })
-  await commitPreparedDesktopBackup({ prepared, metadataStore, thumbnailCache })
-  return {
-    tripBackupJson: prepared.tripBackupJson,
-    photoRootCount: prepared.photoRootCount,
-    photoCount: prepared.photoCount,
-    thumbnailCount: prepared.thumbnailCount,
-    photoIds: prepared.photoIds,
-  }
+  try {
+    await commitPreparedDesktopBackup({ prepared, metadataStore, thumbnailCache })
+    return {
+      tripBackupJson: prepared.tripBackupJson,
+      photoRootCount: prepared.photoRootCount,
+      photoCount: prepared.photoCount,
+      thumbnailCount: prepared.thumbnailCount,
+      photoIds: prepared.photoIds,
+    }
+  } finally { await prepared.dispose() }
 }

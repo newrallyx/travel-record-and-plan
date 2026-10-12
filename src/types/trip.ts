@@ -56,6 +56,12 @@ export interface Waypoint {
   timestamp?: string
 }
 
+/** 按途经点顺序记录从本路段起点累计的路线预估；缺失值不等于零。 */
+export interface WaypointRouteEstimate {
+  distanceMeters?: number
+  durationSeconds?: number
+}
+
 export interface RouteSegment {
   id: string
   name: string
@@ -77,6 +83,7 @@ export interface RouteSegment {
   points?: CoordPoint[]
   distanceMeters?: number
   estimatedDurationSeconds?: number
+  waypointEstimates?: WaypointRouteEstimate[]
   durationUpdatedAt?: string
   estimatedTollYuan?: number
   tollDistanceMeters?: number

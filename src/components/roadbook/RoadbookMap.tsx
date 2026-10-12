@@ -1,26 +1,51 @@
-import { useCallback } from 'react'
-import type { RouteSegment } from '../../types/trip'
+import { useCallback, useMemo, useState } from 'react'
+import type { RouteColorMode, RouteSegment, Trip } from '../../types/trip'
 import MapPanel from '../MapPanel'
 import type { ResolvedRoutePatch, TrackSavePayload } from '../map/types'
 import { DEFAULT_ROAD_TYPE_VISIBILITY } from '../map/roadTypeVisualization'
+import RouteColorControls from '../map/RouteColorControls'
 
 interface RoadbookMapProps {
   segments: RouteSegment[]
+  animateViewport?: boolean
+  trips: readonly Trip[]
+  selectedTripId?: string
+  overviewYear?: string
+  showScoreOptions?: boolean
 }
 
 /** 路书浏览模式的只读地图：所有回调均为空操作，保证不会误修改旅程。 */
-function RoadbookMap({ segments }: RoadbookMapProps) {
+function RoadbookMap({ segments, animateViewport, trips, selectedTripId, overviewYear, showScoreOptions = true }: RoadbookMapProps) {
+  const [routeColorMode, setRouteColorMode] = useState<RouteColorMode>('default')
+  const [roadTypeVisibility, setRoadTypeVisibility] = useState({ ...DEFAULT_ROAD_TYPE_VISIBILITY })
+  const allTrips = useMemo(() => [...trips], [trips])
+  const canUseScoreColoring = Boolean(selectedTripId)
+  const activeColorMode = (!showScoreOptions || !canUseScoreColoring) && (routeColorMode === 'scenic' || routeColorMode === 'difficulty')
+    ? 'default' : routeColorMode
   const ignoreRouteResolved = useCallback((_patches: ResolvedRoutePatch[]) => {}, [])
   const ignoreSaveTrack = useCallback((_payload: TrackSavePayload) => {}, [])
   const ignoreEvent = useCallback(() => {}, [])
   const ignoreAsync = useCallback(async () => {}, [])
 
   return (
+    <>
+    <RouteColorControls
+      routeColorMode={activeColorMode}
+      onChangeRouteColorMode={setRouteColorMode}
+      roadTypeVisibility={roadTypeVisibility}
+      onChangeRoadTypeVisibility={setRoadTypeVisibility}
+      canUseScoreColoring={canUseScoreColoring}
+      showScoreOptions={showScoreOptions}
+    />
     <MapPanel
       filteredSegments={segments}
-      routeColorMode="default"
-      roadTypeVisibility={DEFAULT_ROAD_TYPE_VISIBILITY}
+      routeColorMode={activeColorMode}
+      roadTypeVisibility={roadTypeVisibility}
+      allTrips={allTrips}
+      selectedTripId={selectedTripId}
+      overviewYear={overviewYear}
       isOverviewMode
+      animateViewport={animateViewport}
       editingSegmentId={null}
       onCancelEdit={ignoreEvent}
       onSaveEdit={ignoreSaveTrack}
@@ -44,6 +69,7 @@ function RoadbookMap({ segments }: RoadbookMapProps) {
       isReadonlyMode
       onEndpointDraftChange={ignoreEvent}
     />
+    </>
   )
 }
 

@@ -43,3 +43,16 @@ test('desktop restore transaction reports the imported route count after all sto
   assert.equal(count, 1)
   assert.equal(photoCommitted, true)
 })
+
+test('legacy restore does not clean photos when route replacement fails', async () => {
+  let cleaned = false
+  const persisted = []
+  await assert.rejects(commitDesktopRestoreTransaction({
+    currentTripReview, nextTripReview, currentRoutes, nextRoutes,
+    persistTripReview: (value) => persisted.push(value),
+    replaceRoutes: async (value) => { if (value === nextRoutes) throw new Error('route failure'); return value.length },
+    commitPhotos: async () => { cleaned = true },
+  }), /route failure/)
+  assert.equal(cleaned, false)
+  assert.deepEqual(persisted, [nextTripReview, currentTripReview])
+})

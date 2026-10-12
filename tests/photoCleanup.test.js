@@ -76,3 +76,18 @@ test('removePhotoReferences clears the trip cover when the cover photo is remove
   const untouched = removePhotoReferences(data, ['other-photo'])
   assert.equal(untouched.trips[0].coverPhotoId, 'cover-photo')
 })
+
+test('batch deletion makes one repository call and reports a failed batch without retrying individual records', async () => {
+  const calls = []
+  const repository = {
+    deletePhoto: async () => { throw new Error('individual deletion must not run') },
+    deletePhotos: async (ids) => { calls.push(ids); return ['one', 'two'] },
+  }
+  const result = await deleteLinkedPhotoRecords(repository, ['one', 'two', 'one', ''])
+  assert.deepEqual(calls, [['one', 'two']])
+  assert.deepEqual(result, { deletedPhotoIds: ['one', 'two'], failures: [] })
+  repository.deletePhotos = async () => { throw new Error('storage unavailable') }
+  assert.deepEqual(await deleteLinkedPhotoRecords(repository, ['one', 'two']), {
+    deletedPhotoIds: [], failures: [{ photoId: 'one', error: 'storage unavailable' }, { photoId: 'two', error: 'storage unavailable' }],
+  })
+})

@@ -51,6 +51,7 @@ export function applyResolvedRoutePatches(
           && sameRouteKey
           && sameDuration
           && sameDurationUpdatedAt
+          && JSON.stringify(segment.waypointEstimates) === JSON.stringify(patch.waypointEstimates)
           && sameToll
           && sameTollDistance
           && sameTollUpdatedAt
@@ -65,6 +66,7 @@ export function applyResolvedRoutePatches(
         return {
           ...segment,
           points: patch.points,
+          waypointEstimates: patch.waypointEstimates,
           distanceMeters:
             typeof patch.distanceMeters === 'number' ? Math.round(patch.distanceMeters) : segment.distanceMeters,
           estimatedDurationSeconds:
@@ -107,6 +109,7 @@ export async function persistResolvedRoutePatches(
     distanceMeters: patch.distanceMeters,
     estimatedDurationSeconds: patch.estimatedDurationSeconds,
     durationUpdatedAt: patch.durationUpdatedAt,
+    waypointEstimates: patch.waypointEstimates,
     estimatedTollYuan: patch.estimatedTollYuan,
     tollDistanceMeters: patch.tollDistanceMeters,
     tollUpdatedAt: patch.tollUpdatedAt,

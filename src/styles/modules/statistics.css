@@ -1,5 +1,59 @@
 /* ---------- 数据统计（0.4.3） ---------- */
 
+.retrospective-navigation.statistics-segmented-control {
+  margin: 0;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.retrospective-navigation.statistics-segmented-control button {
+  min-height: var(--control-min-height);
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  padding: 7px 10px;
+  white-space: nowrap;
+}
+.retrospective-navigation.statistics-segmented-control button.active {
+  border-bottom-color: var(--primary);
+  background: transparent;
+  box-shadow: none;
+}
+.statistics-road-archive-link { display: inline-block; margin-left: 10px; padding: 3px 7px; border: 1px solid var(--line); border-radius: 6px; color: var(--primary); background: var(--surface); font-size: 12px; cursor: pointer; }
+.travel-retrospective .statistics-module { margin-bottom: 16px; }
+.retrospective-metrics, .annual-review-highlights { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin: 18px 0; }
+.retrospective-metrics article, .annual-review-highlights article { padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.retrospective-metrics small, .annual-review-highlights small { display: block; color: var(--ink-3); margin-bottom: 8px; }
+.retrospective-metrics strong { font-size: 22px; }
+.retrospective-metrics .retrospective-date-range { font-size: 14px; }
+.retrospective-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.retrospective-year-filter { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.retrospective-year-filter select { width: auto; min-width: 100px; }
+.road-archive-visits { margin-top: 14px; }
+.annual-review-overview { margin-top: 20px; }
+.annual-review-map { margin-top: 16px; }
+.annual-review-map > .map-section-with-toolbar { height: 420px; min-height: 0; margin: 12px 0 0; padding: 0; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.annual-review-highlights h4 { font-size: 18px; margin: 8px 0; }
+.annual-review-highlights p { color: var(--ink-3); font-size: 13px; }
+.annual-review-road-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; margin-top: 16px; }
+.annual-review-road-list button { text-align: left; padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--ink); cursor: pointer; }
+.annual-review-road-list span, .annual-review-road-list small { display: block; margin-top: 8px; color: var(--ink-3); }
+.annual-review-road-list button:hover, .statistics-road-archive-link:hover { border-color: var(--primary); }
+.annual-review-scenic-list article { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 0; border-bottom: 1px solid var(--line); }
+.annual-review-scenic-list small { display: block; margin-top: 6px; color: var(--ink-3); }
+.annual-review-scenic-list p { font-size: 13px; margin: 6px 0 0; }
+.annual-review-photos { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 14px; margin-top: 16px; }
+.annual-review-photos > div { min-width: 0; }
+.annual-review-photos > div > small { display: block; color: var(--ink-3); margin-top: 6px; overflow-wrap: anywhere; }
+.annual-review-photos .segment-photo-card { width: 100%; }
+.retrospective-export-message { color: var(--ink-2); font-size: 13px; overflow-wrap: anywhere; }
+@media (max-width: 700px) {
+  .annual-review-heading .statistics-module-heading { flex-direction: column; }
+  .annual-review-scenic-list article { align-items: flex-start; flex-direction: column; }
+  .annual-review-map > .map-section-with-toolbar { height: 300px; }
+  .retrospective-navigation button { flex: 1; }
+}
+
 .review-full-page {
   flex: 1;
   min-width: 0;
@@ -35,7 +89,7 @@
 }
 
 .statistics-dashboard-header {
-  margin-bottom: 18px;
+  margin-bottom: 12px;
 }
 
 .statistics-dashboard-header h2,
@@ -71,29 +125,45 @@
   font-weight: 600;
 }
 
+.statistics-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line);
+}
+
 .statistics-filter-bar {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   flex-wrap: wrap;
   gap: 10px;
-  margin-bottom: 16px;
-  padding: 12px 14px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-panel);
-  background: var(--surface);
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+
+.statistics-filter-bar[hidden] {
+  display: none;
 }
 
 .statistics-filter-bar label {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
   color: var(--ink-3);
   font-size: var(--font-caption);
 }
 
 .statistics-filter-bar select {
-  min-width: 150px;
-  padding: 6px 10px;
+  min-width: 140px;
+  max-width: 100%;
+  min-height: var(--control-min-height);
+  padding: 6px 30px 6px 10px;
   border: 1px solid var(--line-2);
   border-radius: var(--radius-sm);
   background: var(--surface);
@@ -139,10 +209,14 @@
 
 .statistics-overview {
   display: grid;
-  grid-template-columns: repeat(6, minmax(155px, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 0;
   min-width: 0;
   margin-bottom: 16px;
+  padding: 4px 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  background: var(--surface);
 }
 
 .statistics-overview-card,
@@ -158,9 +232,18 @@
 .statistics-overview-card {
   display: flex;
   flex-direction: column;
-  gap: 7px;
+  gap: 5px;
   min-width: 0;
-  padding: 12px 14px;
+  padding: 10px 12px;
+  border: 0;
+  border-inline-end: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.statistics-overview-card:last-child {
+  border-inline-end: 0;
 }
 
 .statistics-overview-card > span,
@@ -170,7 +253,7 @@
 }
 
 .statistics-count-card > strong {
-  color: var(--primary-strong);
+  color: var(--ink);
   font-size: 22px;
   line-height: 1.1;
 }
@@ -196,7 +279,8 @@
   font-size: 15px;
   font-variant-numeric: tabular-nums;
   line-height: 1.25;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .statistics-metric-value.is-partial strong {
@@ -259,12 +343,12 @@
   max-width: 620px;
   padding: 3px;
   border-radius: var(--radius-md);
-  background: rgba(226, 232, 240, 0.55);
+  background: var(--surface-3);
 }
 
 .statistics-segmented-control button {
   border: 1px solid transparent;
-  border-radius: 7px;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--ink-3);
   padding: 5px 9px;
@@ -273,14 +357,14 @@
 }
 
 .statistics-segmented-control button:hover:not(.active) {
-  background: rgba(255, 255, 255, 0.72);
+  background: var(--surface-2);
   color: var(--ink-2);
 }
 
 .statistics-segmented-control button.active {
   background: var(--surface);
   color: var(--primary-strong);
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12);
+  box-shadow: none;
 }
 
 .statistics-table-wrap {
@@ -693,13 +777,54 @@
   min-width: 1050px;
 }
 
+.road-analysis-correction-table tbody > tr > th,
+.road-analysis-correction-table tbody > tr > td {
+  vertical-align: middle;
+}
+
+.road-analysis-correction-table input:not([type='checkbox']),
+.road-analysis-correction-table select,
+.road-analysis-correction-table td button,
+.road-interval-fields input,
+.road-interval-fields select,
+.road-interval-fields > button {
+  height: var(--control-min-height);
+}
+
 .road-analysis-correction-table input {
   min-width: 100px;
   width: 120px;
 }
 
+.concurrent-road-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+}
+
+.concurrent-road-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  width: 300px;
+  max-width: 100%;
+}
+
+.concurrent-road-editor .concurrent-road-row input,
+.concurrent-road-editor .concurrent-road-row select {
+  min-width: 0;
+  width: 100px;
+}
+
+.road-analysis-correction-table .concurrent-road-editor {
+  min-width: 270px;
+}
+
 .road-analysis-correction-actions {
   display: flex;
+  align-items: center;
   gap: 6px;
   white-space: nowrap;
 }
@@ -745,6 +870,36 @@
   border: 1px solid #6366f1;
   background: rgba(99, 102, 241, 0.12);
   z-index: 1;
+}
+
+.road-analysis-correction-table tr.is-map-active > th,
+.road-analysis-correction-table tr.is-map-active > td {
+  background: rgba(255, 235, 59, 0.12);
+  box-shadow: inset 0 2px rgba(234, 179, 8, 0.8), inset 0 -2px rgba(234, 179, 8, 0.8);
+}
+
+.road-part-locate {
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  padding: 3px 0;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+
+.road-analysis-correction-table th[scope='row'] {
+  min-width: 250px;
+}
+
+.road-part-locate[aria-pressed="true"] {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.trip-completeness-panel > summary {
+  cursor: pointer;
+  font-weight: 600;
 }
 
 .road-interval-annotation {
@@ -804,6 +959,13 @@
   margin-top: 9px;
   color: var(--ink-2);
   font-size: var(--font-caption);
+}
+
+.road-interval-selection-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
 }
 
 .road-interval-fields {
@@ -1043,10 +1205,14 @@
   overflow: auto;
 }
 
-@media (max-width: 1320px) {
+@media (max-width: 1100px) {
 
   .statistics-overview {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .statistics-overview-card:nth-child(3n) {
+    border-inline-end: 0;
   }
 }
 
@@ -1087,6 +1253,21 @@
   }
 }
 
+@media (max-width: 700px) {
+
+  .statistics-overview {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .statistics-overview-card:nth-child(3n) {
+    border-inline-end: 1px solid var(--line);
+  }
+
+  .statistics-overview-card:nth-child(2n) {
+    border-inline-end: 0;
+  }
+}
+
 @media (max-width: 620px) {
 
   .review-full-page {
@@ -1097,16 +1278,21 @@
     padding-bottom: 18px;
   }
 
-  .statistics-overview,
   .statistics-score-summary,
   .statistics-placeholder-grid {
     grid-template-columns: 1fr;
   }
 
   .statistics-filter-bar label,
+  .statistics-filter-bar {
+    width: 100%;
+    min-width: 0;
+  }
+
   .statistics-filter-bar select,
   .statistics-trip-filter select {
-    width: 100%;
+    flex: 1;
+    width: 0;
     min-width: 0;
   }
 
@@ -1243,3 +1429,29 @@
 
 .statistics-overview-card .statistics-metric-value > strong { font-size: var(--font-number); }
 .statistics-trip-table tr > :last-child { min-width: 140px; }
+
+.road-footprint-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; margin: 12px 0; }
+.road-footprint-toolbar .retrospective-year-filter { margin: 0; }
+.road-footprint-legend { display: flex; flex-wrap: wrap; gap: 12px 20px; }
+.road-footprint-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.road-footprint-legend i { width: 24px; height: 5px; border-radius: 3px; }
+.road-footprint-map { height: clamp(320px, 58vh, 660px); overflow: hidden; border: 1px solid var(--line); border-radius: 12px; }
+.road-footprint-map .map-container { height: 100%; min-height: 0; }
+.road-footprint-record-heading { margin-top: 20px; }
+.road-footprint-record-heading h4 { margin: 0; }
+.statistics-trip-link.statistics-trip-title {
+  min-height: var(--control-min-height);
+  max-width: 100%;
+  padding: 4px 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--primary-strong);
+  text-align: left;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.statistics-trip-link.statistics-trip-title:hover { background: var(--primary-soft); }
+.statistics-trip-link.statistics-trip-title:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }

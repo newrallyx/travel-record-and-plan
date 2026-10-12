@@ -12,6 +12,7 @@ import { normalizeScore, normalizeSegmentNote } from '../utils/segmentScores.ts'
 import { normalizeTripOrders } from '../utils/tripOrder.ts'
 import { normalizeTollValue } from '../utils/tolls.ts'
 import { normalizeDurationSeconds } from '../utils/durations.ts'
+import { normalizeWaypointEstimates } from '../utils/waypointEstimates.ts'
 import { isReviewTag } from '../utils/reviewTags.ts'
 
 // 本地存储服务：统一处理 TripReview 的读取与保存，避免组件直接操作 localStorage。
@@ -180,6 +181,7 @@ function normalizeRouteSegment(segment: RouteSegment): RouteSegment {
     photoIds: normalizePhotoIds(segment.photoIds),
     reviewFacts: normalizeReviewFacts(segment.reviewFacts),
     estimatedDurationSeconds: normalizeDurationSeconds(segment.estimatedDurationSeconds),
+    waypointEstimates: normalizeWaypointEstimates(segment.waypointEstimates),
     durationUpdatedAt: typeof segment.durationUpdatedAt === 'string' ? segment.durationUpdatedAt : undefined,
     estimatedTollYuan: normalizeTollValue(segment.estimatedTollYuan),
     tollDistanceMeters: normalizeTollValue(segment.tollDistanceMeters),
@@ -230,6 +232,7 @@ function toPersistedRouteSegment(segment: RouteSegment): RouteSegment {
         : 'HIGHWAY_FIRST',
     distanceMeters: segment.distanceMeters,
     estimatedDurationSeconds: normalizeDurationSeconds(segment.estimatedDurationSeconds),
+    waypointEstimates: normalizeWaypointEstimates(segment.waypointEstimates),
     durationUpdatedAt: typeof segment.durationUpdatedAt === 'string' ? segment.durationUpdatedAt : undefined,
     estimatedTollYuan: normalizeTollValue(segment.estimatedTollYuan),
     tollDistanceMeters: normalizeTollValue(segment.tollDistanceMeters),

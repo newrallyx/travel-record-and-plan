@@ -40,10 +40,20 @@ export function removePhotoReferences(data: TripReview, photoIds: string[]): Tri
 }
 
 export async function deleteLinkedPhotoRecords(
-  repository: Pick<PhotoMetadataRepository, 'deletePhoto'>,
+  repository: Pick<PhotoMetadataRepository, 'deletePhoto' | 'deletePhotos'>,
   photoIds: string[],
 ): Promise<PhotoDeleteBatchResult> {
   const uniquePhotoIds = Array.from(new Set(photoIds.map((photoId) => photoId.trim()).filter(Boolean)))
+  if (repository.deletePhotos) {
+    try {
+      const deleted = new Set(await repository.deletePhotos(uniquePhotoIds))
+      return { deletedPhotoIds: uniquePhotoIds.filter((id) => deleted.has(id)), failures: [] }
+    } catch (error) {
+      return { deletedPhotoIds: [], failures: uniquePhotoIds.map((photoId) => ({
+        photoId, error: error instanceof Error ? error.message : String(error),
+      })) }
+    }
+  }
   const settled = await Promise.allSettled(uniquePhotoIds.map((photoId) => repository.deletePhoto(photoId)))
   const deletedPhotoIds: string[] = []
   const failures: PhotoDeleteBatchResult['failures'] = []

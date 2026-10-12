@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { planCyclingRoute, planDrivingRoute, searchAmapInputTips } from '../../services/amap'
-import { getSegmentRouteCache } from '../../services/routeCacheDb'
+import { getSegmentRouteCache, subscribeRouteCacheChanges } from '../../services/routeCacheDb'
 import type { RouteSegment } from '../../types/trip'
 import {
   buildSegmentRouteKey,
@@ -24,6 +24,29 @@ interface UseMapTracksParams {
   routeRefreshRequest: RouteRefreshRequest
 }
 
+interface TrackRequest {
+  segments: RouteSegment[]
+  allowAutoBuild: boolean
+  isReadonlyMode: boolean
+  routeServiceRevision: number
+  refreshRevision: number
+  cacheRevision: number
+}
+interface TrackSnapshot {
+  request: TrackRequest
+  tracks: SegmentTrack[]
+  message: string
+}
+
+// Segment objects are immutable application state. Compare references, not full
+// geometry, and invalidate every snapshot on committed cache writes/restores.
+function matchesRequest(a: TrackRequest, b: TrackRequest): boolean {
+  return a.allowAutoBuild === b.allowAutoBuild && a.isReadonlyMode === b.isReadonlyMode
+    && a.routeServiceRevision === b.routeServiceRevision && a.refreshRevision === b.refreshRevision
+    && a.cacheRevision === b.cacheRevision && a.segments.length === b.segments.length
+    && a.segments.every((segment, index) => segment === b.segments[index])
+}
+
 async function resolvePointByName(placeName: string): Promise<{ lat: number; lon: number } | null> {
   const { tips } = await searchAmapInputTips({ keywords: placeName, citylimit: false })
   const first = tips[0]
@@ -40,8 +63,15 @@ export function useMapTracks({
   routeRefreshRequest,
 }: UseMapTracksParams) {
   const [tracks, setTracks] = useState<SegmentTrack[]>([])
-  const [loading, setLoading] = useState(false)
-  const [message, setMessage] = useState('请选择旅程/日期/路段以查看轨迹')
+  const [cacheRevision, setCacheRevision] = useState(0)
+  const cacheRevisionRef = useRef(0)
+  const snapshots = useRef<TrackSnapshot[]>([])
+  const [completed, setCompleted] = useState<TrackSnapshot>()
+  useEffect(() => subscribeRouteCacheChanges(() => {
+    snapshots.current = []
+    cacheRevisionRef.current++
+    setCacheRevision(cacheRevisionRef.current)
+  }), [])
   const buildRunIdRef = useRef(0)
   const handledRefreshRevisionRef = useRef(0)
 
@@ -55,20 +85,25 @@ export function useMapTracks({
     [filteredSegments],
   )
 
-  const routeBuildKey = useMemo(
-    () => segmentDescriptors.map((item) => `${item.segment.id}:${item.buildKey}`).join('||'),
-    [segmentDescriptors],
-  )
+  const request = useMemo(() => ({
+    segments: filteredSegments, allowAutoBuild, isReadonlyMode,
+    routeServiceRevision, refreshRevision: routeRefreshRequest.revision, cacheRevision,
+  }), [filteredSegments, allowAutoBuild, isReadonlyMode, routeServiceRevision, routeRefreshRequest.revision, cacheRevision])
+  const cached = snapshots.current.find(snapshot => matchesRequest(snapshot.request, request))
+  const current = cached ?? (completed && matchesRequest(completed.request, request) ? completed : undefined)
 
   useEffect(() => {
     let active = true
     const runId = ++buildRunIdRef.current
+    if (current) {
+      // Touch on scope entry, not every render; keep only three completed scopes.
+      if (cached) snapshots.current = [...snapshots.current.filter(item => item !== cached), cached]
+      return
+    }
 
     async function buildTracks() {
       if (!segmentDescriptors.length) {
         setTracks([])
-        setLoading(false)
-        setMessage('请选择旅程/日期/路段以查看轨迹')
         return
       }
 
@@ -77,8 +112,6 @@ export function useMapTracks({
         ? routeRefreshRequest
         : null
       if (pendingRefresh) handledRefreshRevisionRef.current = pendingRefresh.revision
-      setLoading(shouldPlanMissing)
-      setMessage(shouldPlanMissing ? '正在按需加载路线...' : '当前为全局视图，仅展示已缓存轨迹。')
 
       const warnings: string[] = []
       const patches: ResolvedRoutePatch[] = []
@@ -259,36 +292,28 @@ export function useMapTracks({
         })(),
       )
 
-      await Promise.allSettled(tasks)
-      if (!active || runId !== buildRunIdRef.current) return
+      const outcomes = await Promise.allSettled(tasks)
+      if (!active || runId !== buildRunIdRef.current || request.cacheRevision !== cacheRevisionRef.current) return
 
       const finalTracks = partialTracks.filter((track): track is SegmentTrack => Boolean(track))
       setTracks(finalTracks)
-      setLoading(false)
-
-      if (patches.length) onRouteResolved(patches)
-
-      if (!finalTracks.length) {
-        setMessage('未解析出可展示路线，请检查起终点、途经点或进入更细粒度视图。')
-        return
+      const message = !finalTracks.length
+        ? '未解析出可展示路线，请检查起终点、途经点或进入更细粒度视图。'
+        : warnings.length ? warnings.join(' ') : shouldPlanMissing ? '已加载路线。' : '已展示缓存轨迹。'
+      const snapshot = { request, tracks: finalTracks, message }
+      // Do not retain rejected tasks or planning runs in the reusable scope cache.
+      if (!shouldPlanMissing && outcomes.every(outcome => outcome.status === 'fulfilled')) {
+        snapshots.current = [...snapshots.current.filter(item => !matchesRequest(item.request, request)), snapshot].slice(-3)
       }
-
-      setMessage(warnings.length ? warnings.join(' ') : shouldPlanMissing ? '已加载路线。' : '已展示缓存轨迹。')
+      setCompleted(snapshot)
+      if (patches.length) onRouteResolved(patches)
     }
 
     void buildTracks()
     return () => {
       active = false
     }
-  }, [
-    routeBuildKey,
-    segmentDescriptors,
-    allowAutoBuild,
-    isReadonlyMode,
-    onRouteResolved,
-    routeServiceRevision,
-    routeRefreshRequest,
-  ])
+  }, [request, onRouteResolved])
 
   // Filters change before the asynchronous cache read finishes. Never expose the
   // previous overview's full geometry to the newly selected detail view.
@@ -297,5 +322,10 @@ export function useMapTracks({
     return tracks.filter((track) => ids.has(track.segmentId))
   }, [tracks, filteredSegments])
 
-  return { tracks: visibleTracks, loading, message }
+  return {
+    tracks: current?.tracks ?? visibleTracks,
+    // A scope mismatch is pending already during render, before effects run.
+    loading: filteredSegments.length > 0 && !current,
+    message: current?.message ?? (filteredSegments.length ? '正在按需加载路线...' : '请选择旅程/日期/路段以查看轨迹'),
+  }
 }

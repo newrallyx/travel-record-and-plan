@@ -1,4 +1,4 @@
-import type { CoordPoint, RouteSegment } from '../../types/trip'
+import type { CoordPoint, RouteSegment, WaypointRouteEstimate } from '../../types/trip'
 import type { RoadAnalysisMeta, RouteRoadPart } from '../../types/roadStatistics'
 
 export type PointKind = 'start' | 'via' | 'end'
@@ -22,6 +22,7 @@ export interface SegmentRouteDescriptor {
 }
 
 export interface ResolvedRoutePatch {
+  waypointEstimates?: WaypointRouteEstimate[]
   segmentId: string
   points: CoordPoint[]
   distanceMeters: number | null

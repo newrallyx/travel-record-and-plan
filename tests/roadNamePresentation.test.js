@@ -1,6 +1,15 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { presentRoadNames } from '../src/utils/roadNamePresentation.ts'
+import { getRoadPartDisplayName, presentRoadNames } from '../src/utils/roadNamePresentation.ts'
+
+test('interval display preserves original names and falls back to the corrected number and class', () => {
+  const part = { roadClass: 'NATIONAL_ROAD', routeRef: 'G242' }
+  assert.equal(getRoadPartDisplayName({ ...part, roadName: '202省道' }), '202省道')
+  assert.equal(getRoadPartDisplayName({ ...part, tollRoad: '原道路名称' }), '原道路名称')
+  assert.equal(getRoadPartDisplayName(part), 'G242 国道')
+  assert.equal(getRoadPartDisplayName({ roadClass: 'PROVINCIAL_ROAD', routeRef: 'S101', roadName: ' ' }), 'S101 省道')
+  assert.equal(getRoadPartDisplayName({ roadClass: 'UNKNOWN' }), '未命名道路')
+})
 
 test('road name summaries collapse entrances and preserve conflicting source names', () => {
   const original = ['灞桥立交', 'G30连霍高速', 'G30连霍高速入口', 'G30连霍高速出口', 'G3024宝鸡过境高速']

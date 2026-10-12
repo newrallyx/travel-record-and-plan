@@ -8,6 +8,7 @@ import type {
   TripStatisticsSummary,
 } from '../types/tripStatistics.ts'
 import { normalizeRoadText } from './roadClassifier.ts'
+import { roadIdentityKey } from './roadMemberships.ts'
 import { nationalRoadDisplayName } from '../config/nationalRoadNames.ts'
 import { summarizeReviewTripStatistics, summarizeTripSetStatistics } from './tripStatistics.ts'
 
@@ -46,30 +47,18 @@ function compareDistances(
   }
 }
 
-function namedRoadEntries(summary: TripStatisticsSummary) {
+export function namedRoadEntries(summary: Pick<TripStatisticsSummary, 'numberedRoadDistance'>) {
   const numbered = summary.numberedRoadDistance
-  const provinceSensitive = (roadClass: NamedRoadComparisonRow['roadClass'], routeRef: string | null) => (
-    roadClass === 'PROVINCIAL_ROAD' || (roadClass === 'EXPRESSWAY' && routeRef?.startsWith('S'))
-  )
-  const makeKey = (
-    roadClass: NamedRoadComparisonRow['roadClass'],
-    routeRef: string | null,
-    provinceCode?: string,
-    provinceStatus?: NamedRoadComparisonRow['provinceStatus'],
-  ) => {
-    if (!provinceSensitive(roadClass, routeRef)) return `${roadClass}:${routeRef ?? 'UNNUMBERED'}`
-    return `${roadClass}:${provinceCode ?? (provinceStatus === 'pending' ? 'PENDING' : 'UNKNOWN')}:${routeRef ?? 'UNNUMBERED'}`
-  }
   return [
     ...numbered.entries.map((entry) => ({
       ...entry,
-      key: makeKey(entry.roadClass, entry.routeRef, entry.provinceCode, entry.provinceStatus),
+      key: roadIdentityKey(entry)!,
     })),
     { ...numbered.unnumberedExpressway, key: 'EXPRESSWAY:UNNUMBERED', roadClass: 'EXPRESSWAY' as const, routeRef: null },
     { ...numbered.unnumberedNationalRoad, key: 'NATIONAL_ROAD:UNNUMBERED', roadClass: 'NATIONAL_ROAD' as const, routeRef: null },
     ...numbered.unnumberedProvincialRoads.map((entry) => ({
       ...entry,
-      key: makeKey('PROVINCIAL_ROAD', null, entry.provinceCode, entry.provinceStatus),
+      key: roadIdentityKey({ ...entry, roadClass: 'PROVINCIAL_ROAD' })!,
       roadClass: 'PROVINCIAL_ROAD' as const,
       routeRef: null,
     })),
@@ -111,6 +100,7 @@ export function summarizeRoadStatisticsComparison(
       ...(entry.provinceCode ? { provinceCode: entry.provinceCode } : {}),
       ...(entry.provinceName ? { provinceName: entry.provinceName } : {}),
       ...(entry.provinceStatus ? { provinceStatus: entry.provinceStatus } : {}),
+      ...(entry.provinceCandidates ? { provinceCandidates: entry.provinceCandidates } : {}),
       ...('routeRefs' in entry && entry.routeRefs ? { routeRefs: entry.routeRefs } : {}),
       roadNames: [...new Set([...(now?.roadNames ?? []), ...(past?.roadNames ?? [])])].sort((a, b) => a.localeCompare(b, 'zh-CN')),
       currentRoadPartCount: now?.roadPartCount ?? 0,

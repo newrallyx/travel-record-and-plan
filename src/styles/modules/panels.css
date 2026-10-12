@@ -28,14 +28,15 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 2px 2px 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line);
   background: var(--surface);
 }
 
 .panel-topbar-label {
   font-size: var(--font-caption);
   font-weight: 700;
-  letter-spacing: 0.08em;
+  letter-spacing: 0;
   color: var(--ink-3);
 }
 
@@ -104,8 +105,9 @@
   gap: 4px;
   padding: 4px;
   margin: 0 0 2px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-panel);
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   box-shadow: none;
@@ -133,18 +135,19 @@
 
 .detail-collapsible {
   margin-top: 12px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-panel);
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-radius: 0;
   background: var(--surface);
   overflow: hidden;
-  box-shadow: 0 1px 3px rgba(16, 24, 40, 0.04);
+  box-shadow: none;
 }
 
 .detail-collapsible > summary {
   position: relative;
   list-style: none;
   cursor: pointer;
-  padding: 10px 12px 10px 26px;
+  padding: 10px 0;
   color: var(--ink);
   font-size: var(--font-body);
   font-weight: 700;
@@ -160,7 +163,7 @@
 }
 
 .detail-collapsible > summary::before {
-  content: '';
+  content: none;
   position: absolute;
   left: 12px;
   top: 50%;
@@ -192,7 +195,7 @@
 }
 
 .detail-collapsible-body {
-  padding: 10px 12px;
+  padding: 8px 0;
   display: grid;
   gap: 8px;
 }

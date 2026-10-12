@@ -77,6 +77,9 @@ function RoadbookCoverImage({ photo }: { photo: LinkedPhotoRecord }) {
 
 /** 仅使用已有轨迹或端点生成封面轮廓，不请求路线、不连接无关路段。 */
 function RoadbookPlaceholderCover({ trip, item }: { trip?: Trip; item: TripBookItem }) {
+  const segments = trip?.days.flatMap(day => day.routeSegments) ?? []
+  const startPoint = segments[0]?.startPoint
+  const endPoint = segments[segments.length - 1]?.endPoint
   const paths = useMemo(() => {
     const tracks = (trip?.days.flatMap(day => day.routeSegments) ?? []).map(segment => {
       const points = segment.points?.length ? segment.points : [segment.startCoord, segment.endCoord].filter(Boolean)
@@ -95,7 +98,7 @@ function RoadbookPlaceholderCover({ trip, item }: { trip?: Trip; item: TripBookI
   return <span className="roadbook-placeholder-art" aria-hidden="true">
     <span className="roadbook-placeholder-date">{item.startDate || '日期待补全'} · {item.dayCount} 天</span>
     {paths.length > 0 && <svg viewBox="0 0 300 140" preserveAspectRatio="xMidYMid meet">{paths.map((points, index) => <polyline key={index} points={points} />)}</svg>}
-    <strong>{item.title}</strong>
+    <strong>{startPoint && endPoint ? `${startPoint} → ${endPoint}` : '自驾旅程'}</strong>
     <span className="roadbook-placeholder-caption">{paths.length ? '路线轮廓' : '旅程手记'} · {item.segmentCount} 段旅途</span>
   </span>
 }
@@ -152,14 +155,14 @@ function RoadbookLibraryView({ trips, items, onOpenTrip, isReadonlyMode, onSetCo
     <section className="roadbook-view" aria-label="路书书架">
       <header className="roadbook-view-header">
         <h2>私人自驾书架</h2>
-        <p className="hint-text">已完成旅程会以路书形式整理在这里，点击卡片即可翻开回看。</p>
+        <p className="hint-text">沿着路线，回看每一次旅行。</p>
       </header>
 
       {mapSegments.length > 0 && (
         <details className="roadbook-library-map" open={false}>
           <summary>旅程总览地图（{filteredTrips.length} 个旅程）</summary>
           <div className="roadbook-library-map-body">
-            <RoadbookMap segments={mapSegments} />
+            <RoadbookMap segments={mapSegments} trips={filteredTrips} selectedTripId={filteredTrips.length === 1 ? filteredTrips[0].id : undefined} />
           </div>
         </details>
       )}
@@ -257,7 +260,7 @@ function RoadbookLibraryView({ trips, items, onOpenTrip, isReadonlyMode, onSetCo
                     {!isReadonlyMode && <button type="button" className="btn-secondary" onClick={() => setCoverTripId(item.id)}>
                       更换封面
                     </button>}
-                    <button type="button" className="btn-primary" onClick={() => onOpenTrip(item.id)}>
+                    <button type="button" className="btn-text" onClick={() => onOpenTrip(item.id)}>
                       打开路书
                     </button>
                   </div>

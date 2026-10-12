@@ -35,6 +35,7 @@ export interface PhotoMetadataRepository {
   savePhoto(photo: LinkedPhotoRecord): Promise<void>
   savePhotos(photos: LinkedPhotoRecord[]): Promise<void>
   deletePhoto(photoId: string): Promise<void>
+  deletePhotos?(photoIds: string[]): Promise<string[]>
   deleteTripData(tripId: string, segmentIds: string[]): Promise<PhotoTripCleanupResult>
   cleanupOrphans(referencedPhotoIds: string[]): Promise<PhotoCleanupResult>
   scanLibraryRoot(rootId: string, requestId: string): Promise<PhotoLibraryScanResult>

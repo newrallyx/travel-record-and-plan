@@ -139,6 +139,7 @@ export function buildDrivingRouteResult(
     distanceText: result.distanceText,
     durationText: result.durationText,
     durationSeconds: result.durationSeconds,
+    waypointEstimates: result.waypointEstimates,
     distanceMeters: result.distanceMeters,
     estimatedTollYuan: result.estimatedTollYuan,
     tollDistanceMeters: result.tollDistanceMeters,
@@ -197,6 +198,7 @@ export async function planCyclingRoute(
     let distanceMeters = 0
     let hasCompleteDistance = true
     const legDurations: Array<number | undefined> = []
+    const waypointEstimates: NonNullable<DrivingRouteResult['waypointEstimates']> = []
 
     for (let index = 0; index < points.length - 1; index += 1) {
       const leg = await requestCyclingRoute(toLonLatText(points[index]), toLonLatText(points[index + 1]))
@@ -206,6 +208,13 @@ export async function planCyclingRoute(
         hasCompleteDistance = false
       }
       legDurations.push(leg.durationSeconds)
+      if (index < points.length - 2) {
+        const durationSeconds = sumCompleteDurationSeconds(legDurations)
+        waypointEstimates.push({
+          ...(hasCompleteDistance ? { distanceMeters } : {}),
+          ...(durationSeconds !== undefined ? { durationSeconds } : {}),
+        })
+      }
       polyline.push(...leg.polyline)
       roadParts.push(...await enrichRoadPartsWithPolylineProvince(leg.roadParts ?? []))
     }
@@ -221,6 +230,7 @@ export async function planCyclingRoute(
     )
     const durationSeconds = sumCompleteDurationSeconds(legDurations)
     const route: DrivingRouteResult = {
+      ...(waypointEstimates.length ? { waypointEstimates } : {}),
       polyline,
       roadParts: roadAnalysis.roadParts,
       roadAnalysis: roadAnalysis.meta,

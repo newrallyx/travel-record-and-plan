@@ -3,10 +3,13 @@ import type { OverviewLine } from './overviewAggregation'
 
 // Exact content keys avoid stale results after geometry, classification or direction edits.
 // Bump this version whenever aggregation semantics change.
-const OVERVIEW_CACHE_VERSION = 1
-export function overviewCacheKey(tracks: readonly SegmentTrack[]): string {
-  return JSON.stringify([OVERVIEW_CACHE_VERSION, [...tracks].sort((a, b) => a.segmentId.localeCompare(b.segmentId))
+const OVERVIEW_CACHE_VERSION = 3
+/** Run in the overview worker: keep the full string and UTF-8 copy off the UI thread. */
+export async function overviewCacheKey(tracks: readonly SegmentTrack[]): Promise<string> {
+  const content = JSON.stringify([OVERVIEW_CACHE_VERSION, [...tracks].sort((a, b) => a.segmentId.localeCompare(b.segmentId))
     .map(({ segmentId, line, roadParts }) => [segmentId, line, roadParts])])
+  const digest = await globalThis.crypto.subtle.digest('SHA-256', new TextEncoder().encode(content))
+  return `sha256:${Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('')}`
 }
 
 export function createOverviewCache(capacity = 3) {
@@ -26,11 +29,6 @@ export function createOverviewCache(capacity = 3) {
 }
 
 export const overviewCache = createOverviewCache()
-
-async function persistentKey(key: string): Promise<string> {
-  const digest = await globalThis.crypto.subtle.digest('SHA-256', new TextEncoder().encode(key))
-  return `sha256:${Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('')}`
-}
 
 // Derived data has its own database; failures must never prevent the map from loading.
 export function createPersistentOverviewCache(factory: IDBFactory | undefined = globalThis.indexedDB) {
@@ -54,12 +52,11 @@ export function createPersistentOverviewCache(factory: IDBFactory | undefined = 
     async get(key: string): Promise<OverviewLine[] | undefined> {
       let db: IDBDatabase | undefined
       try {
-        const storageKey = await persistentKey(key)
         db = await open()
         if (!db) return undefined
         return await new Promise<OverviewLine[] | undefined>((resolve) => {
           const tx = db!.transaction('results', 'readonly')
-          const request = tx.objectStore('results').get(storageKey)
+          const request = tx.objectStore('results').get(key)
           tx.oncomplete = () => resolve(request.result?.lines)
           tx.onabort = tx.onerror = () => resolve(undefined)
         })
@@ -68,13 +65,12 @@ export function createPersistentOverviewCache(factory: IDBFactory | undefined = 
     async set(key: string, lines: OverviewLine[]): Promise<void> {
       let db: IDBDatabase | undefined
       try {
-        const storageKey = await persistentKey(key)
         db = await open()
         if (!db) return
         await new Promise<void>((resolve) => {
           const tx = db!.transaction('results', 'readwrite')
           const store = tx.objectStore('results')
-          store.put({ key: storageKey, lines, savedAt: Date.now() })
+          store.put({ key, lines, savedAt: Date.now() })
           // Key-only eviction avoids deserializing every saved overview.
           const request = store.index('savedAt').openKeyCursor(null, 'prev')
           let count = 0

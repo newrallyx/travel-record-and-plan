@@ -33,6 +33,9 @@ import type { LinkedPhotoRecord, PhotoCoordinate } from './types/photo'
 import type { Trip } from './types/trip'
 import { createManualMapPosition } from './utils/photoCoordinates'
 import './styles/app.css'
+import type { TravelRecordTarget } from './utils/travelRetrospective'
+import GlobalSearchDialog from './components/GlobalSearchDialog'
+import type { SearchTarget } from './utils/globalSearch'
 
 interface PhotoPositionEditState {
   photoId: string
@@ -64,6 +67,8 @@ function App() {
   const [leftPanelCollapsed, setLeftPanelCollapsed] = useState(true)
   const [rightPanelCollapsed, setRightPanelCollapsed] = useState(false)
   const [helpOpen, setHelpOpen] = useState(false)
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [detailEditRequest, setDetailEditRequest] = useState<{ segmentId: string; revision: number }>()
   const [reviewMode, setReviewMode] = useState<ReviewMode>('organize')
   const [roadbookTripId, setRoadbookTripId] = useState<string | null>(null)
   const [detailDraftState, setDetailDraftState] = useState<{ segmentId: string | null; dirty: boolean }>({
@@ -96,7 +101,7 @@ function App() {
   }, [])
 
   useEffect(() => {
-    if (orphanCleanupStarted.current || isReadonlyDemoMode || !window.roadtripDesktop?.photoLibrary) return
+    if (orphanCleanupStarted.current || storageIssue || isReadonlyDemoMode || !window.roadtripDesktop?.photoLibrary) return
     orphanCleanupStarted.current = true
     const referencedPhotoIds = collectReferencedPhotoIds(tripReview)
     void electronPhotoMetadataRepository.cleanupOrphans(referencedPhotoIds)
@@ -108,7 +113,7 @@ function App() {
       .catch((error) => {
         console.error('[photoCleanup] Failed to clean orphaned photo data.', error)
       })
-  }, [tripReview])
+  }, [tripReview, storageIssue])
 
   const editing = useAppEditingState()
   const {
@@ -334,6 +339,31 @@ function App() {
     setReviewMode('statistics')
   }, [reviewMode])
 
+  const navigateStatisticsRecord = useCallback(async (target: TravelRecordTarget, photos = false, edit = false) => {
+    const trip = tripReview.trips.find(trip => trip.id === target.tripId && trip.category === 'review')
+    if (!trip || (target.segmentId && !trip.days.some(day => day.id === target.dayId && day.routeSegments.some(segment => segment.id === target.segmentId)))) return
+    const selectionChanged = filters.tripId !== target.tripId || filters.dayId !== target.dayId || filters.segmentId !== target.segmentId
+    const hasEditingDraft = detailDraftState.dirty || editingSegmentId || editingWaypointSegmentId || editingEndpointsSegmentId
+    if (selectionChanged && hasEditingDraft) {
+      const confirmed = await confirmDialog({ title: '放弃未保存的更改', message: '当前路段有未保存的编辑，确定放弃并查看这条记录吗？', confirmText: '放弃更改' })
+      if (!confirmed) return
+      editing.resetEditingState()
+      setDetailDraftState({ segmentId: null, dirty: false })
+    }
+    setFilters({ tripId: target.tripId, dayId: target.dayId, segmentId: target.segmentId })
+    setReviewMode('organize')
+    setRightPanelCollapsed(false)
+    setCompactPanelTab(photos ? 'photos' : 'details')
+    setDetailPanelTab(photos ? 'photos' : 'details')
+    if (edit && target.segmentId && !isReadonlyDemoMode) {
+      setDetailEditRequest(previous => ({ segmentId: target.segmentId, revision: (previous?.revision ?? 0) + 1 }))
+    } else if (edit && !target.segmentId && !isReadonlyDemoMode) {
+      setTripManagerOpen(true)
+      setLeftPanelCollapsed(false)
+      setCompactPanelTab('editor')
+    }
+  }, [tripReview.trips, filters, detailDraftState.dirty, editingSegmentId, editingWaypointSegmentId, editingEndpointsSegmentId, editing.resetEditingState, setFilters])
+
   const {
     isExportingBackup,
     isImportingBackup,
@@ -453,6 +483,59 @@ function App() {
     setPhotoPositionError('')
   }, [activeSegmentId, activeWorkspace])
 
+  const [searchPhotoTarget, setSearchPhotoTarget] = useState<{ segmentId: string; photoId: string } | null>(null)
+  useEffect(() => {
+    if (!searchPhotoTarget) return
+    if (activeSegmentId !== searchPhotoTarget.segmentId) {
+      setSearchPhotoTarget(null)
+    } else if (activeSegmentPhotos.some(photo => photo.id === searchPhotoTarget.photoId && photo.segmentId === searchPhotoTarget.segmentId)) {
+      // 等相册完成路段切换及照片加载后再选中，避免被相册的切换清理覆盖。
+      setSelectedPhotoId(searchPhotoTarget.photoId)
+      setSearchPhotoTarget(null)
+    }
+  }, [activeSegmentId, activeSegmentPhotos, searchPhotoTarget])
+
+  const navigateSearchRecord = useCallback(async (target: SearchTarget) => {
+    const trip = tripReview.trips.find(item => item.id === target.tripId)
+    const day = trip?.days.find(item => item.id === target.dayId)
+    const segment = day?.routeSegments.find(item => item.id === target.segmentId)
+    if (!trip || (target.dayId && !day) || (target.segmentId && !segment)) {
+      showToast('这条记录已不存在，请重新搜索。', 'error')
+      return false
+    }
+    const changed = activeWorkspace !== trip.category || filters.tripId !== target.tripId
+      || filters.dayId !== target.dayId || filters.segmentId !== target.segmentId
+    if (changed && (detailDraftState.dirty || editingSegmentId || editingWaypointSegmentId || editingEndpointsSegmentId || segmentMetaDraft || photoPositionEdit)) {
+      if (!await confirmDialog({ title: '放弃未保存的更改', message: '当前有未保存的编辑，确定放弃并定位到搜索结果吗？', confirmText: '放弃更改' })) return false
+      editing.resetEditingState()
+      setDetailDraftState({ segmentId: null, dirty: false })
+      cancelPhotoPositionEdit()
+    }
+    setActiveWorkspace(trip.category)
+    setReviewMode('organize')
+    setRoadbookTripId(null)
+    setFilters({ tripId: trip.id, dayId: target.dayId, segmentId: target.segmentId })
+    setRightPanelCollapsed(false)
+    setCompactPanelTab(target.photoId ? 'photos' : 'details')
+    setDetailPanelTab(target.photoId ? 'photos' : 'details')
+    setSelectedWaypointId(target.waypointId ?? null)
+    setSearchPhotoTarget(target.photoId ? { segmentId: target.segmentId, photoId: target.photoId } : null)
+    return true
+  }, [tripReview.trips, activeWorkspace, activeSegmentId, filters, detailDraftState.dirty, editingSegmentId, editingWaypointSegmentId,
+    editingEndpointsSegmentId, segmentMetaDraft, photoPositionEdit, editing.resetEditingState, cancelPhotoPositionEdit, setActiveWorkspace, setFilters, setSelectedWaypointId])
+
+  useEffect(() => {
+    const listener = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault()
+        if (document.querySelector('[aria-modal="true"]')) return
+        setSearchOpen(true)
+      }
+    }
+    window.addEventListener('keydown', listener)
+    return () => window.removeEventListener('keydown', listener)
+  }, [])
+
   if (isReadonlyDemoMode && isLoading) {
     return (
       <main className="app-shell">
@@ -525,25 +608,18 @@ function App() {
         <div className="top-nav-title-group">
           <div className="top-nav-title-row">
             <svg className="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
-              <defs>
-                <linearGradient id="brand-mark-grad" x1="0" y1="0" x2="1" y2="1">
-                  <stop offset="0" stopColor="#818cf8" />
-                  <stop offset="1" stopColor="#4338ca" />
-                </linearGradient>
-              </defs>
-              <rect x="1" y="1" width="30" height="30" rx="9" fill="url(#brand-mark-grad)" />
+              <rect x="1" y="1" width="30" height="30" rx="6" fill="var(--primary)" />
               <path
                 d="M7 23c3-12 7-18 9-16s3 8 9 6"
                 fill="none"
-                stroke="#ffffff"
+                stroke="var(--on-primary)"
                 strokeWidth="2.1"
                 strokeLinecap="round"
               />
-              <circle cx="25" cy="13" r="2.6" fill="#fbbf24" stroke="#ffffff" strokeWidth="1" />
+              <circle cx="25" cy="13" r="2.6" fill="var(--on-primary)" />
             </svg>
             <h1>旅行轨迹记录与规划工具</h1>
           </div>
-          <p>{filterContext.tripName} · {filterContext.dayDate} · {filterContext.segmentName}</p>
           {isReadonlyDemoMode ? (
             <p className="top-nav-notice readonly-banner">演示版 / 只读模式：当前内容不可修改</p>
           ) : storageIssue ? (
@@ -634,6 +710,7 @@ function App() {
               if (file) void importBackup(file)
             }}
           />
+          <button type="button" className="btn-secondary" onClick={() => setSearchOpen(true)} title="全局搜索（Ctrl + K）">搜索</button>
           <AutoCloseDetails className="top-nav-menu backup-menu">
             <summary><AppIcon name="archive" className="icon-inline" />备份</summary>
             <div className="top-nav-menu-panel">
@@ -725,6 +802,7 @@ function App() {
             currentTripId={filters.tripId || undefined}
             currentSegmentId={filters.segmentId || undefined}
             isReadonlyMode={isReadonlyDemoMode}
+            onNavigateRecord={(target, photos, edit) => { void navigateStatisticsRecord(target, photos, edit) }}
             onRouteReplacement={(patch) => {
               setTripReview((previous) => applyResolvedRoutePatches(previous, [patch]))
             }}
@@ -968,6 +1046,7 @@ onReorderDaySegments={tripManager.reorderDaySegments}
             data-detail-active={detailPanelTab === 'details'}
           >
             <MapPlaceholder
+            isPlanning={activeWorkspace === 'plan'}
             placeholderMode={placeholderMode}
             tripListItems={tripListItems}
             onViewTrip={(tripId) => changeFiltersWithDetailGuard({ tripId, dayId: '', segmentId: '' })}
@@ -977,6 +1056,14 @@ onReorderDaySegments={tripManager.reorderDaySegments}
               setCompactPanelTab('editor')
             }}
             onDeleteTrip={tripManager.deleteTrip}
+            onOpenTripEditor={() => {
+              setTripManagerOpen(false)
+              setLeftPanelCollapsed(false)
+              setCompactPanelTab('editor')
+              requestAnimationFrame(() => {
+                document.querySelector<HTMLButtonElement>('#compact-editor-panel button[aria-controls="new-trip-form"]')?.focus()
+              })
+            }}
             isReadonlyMode={isReadonlyDemoMode}
             filteredSegments={detailSegments}
             summary={summary}
@@ -1047,6 +1134,8 @@ onReorderDaySegments={tripManager.reorderDaySegments}
               }))
             }}
             onDetailDraftStateChange={setDetailDraftState}
+            editRequest={detailEditRequest}
+            onEditRequestConsumed={() => setDetailEditRequest(undefined)}
             onRefreshRouteEstimate={() => {
               if (!activeSegmentId) return
               setRouteRefreshRequest((current) => ({
@@ -1110,6 +1199,7 @@ onReorderDaySegments={tripManager.reorderDaySegments}
         onClose={amapKeyConfig.close}
       />
       <ConfirmDialogHost />
+      {searchOpen && <GlobalSearchDialog trips={tripReview.trips} onClose={() => setSearchOpen(false)} onNavigate={navigateSearchRecord} />}
       <ToastHost />
       <HelpDialog open={helpOpen} onClose={() => setHelpOpen(false)} />
     </main>
